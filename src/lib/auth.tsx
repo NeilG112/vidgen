@@ -11,6 +11,7 @@ interface AuthContextType {
   loading: boolean;
   signIn: (email: string, pass: string) => Promise<any>;
   signOut: () => Promise<void>;
+  getAuthenticatedUser: () => Promise<FirebaseUser | null>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -18,6 +19,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   signIn: async () => {},
   signOut: async () => {},
+  getAuthenticatedUser: async () => null,
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -62,37 +64,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
   
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signOut, getAuthenticatedUser }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export const useAuth = () => useContext(AuthContext);
-
-
-// Server-side helper to get authenticated user in Server Actions
-export async function getAuthenticatedUser(): Promise<FirebaseUser> {
-    const { initializeApp, getApps } = await import('firebase-admin/app');
-    const { getAuth } = await import('firebase-admin/auth');
-    const { headers } = await import('next/headers');
-    const { adminConfig } = await import('./firebase/admin');
-
-    const apps = getApps();
-    if (!apps.length) {
-        initializeApp(adminConfig);
-    }
-
-    const idToken = headers().get('Authorization')?.split('Bearer ')[1];
-    
-    if (!idToken) {
-        throw new Error('No authentication token provided.');
-    }
-
-    try {
-        const decodedToken = await getAuth().verifyIdToken(idToken);
-        return decodedToken as FirebaseUser;
-    } catch (error) {
-        throw new Error('Invalid or expired authentication token.');
-    }
-}

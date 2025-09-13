@@ -1,6 +1,6 @@
 import AppLayout from "@/components/layout/app-layout";
 import ProfileScraper from "@/components/dashboard/profile-scraper";
-import ProfilesTable from "@/components/dashboard/profiles-table";
+import ProfilesGrid from "@/components/dashboard/profiles-grid";
 
 export default function DashboardPage() {
   return (
@@ -10,7 +10,7 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-bold tracking-tight font-headline">Dashboard</h1>
         </div>
         <ProfileScraper />
-        <ProfilesTable />
+        <ProfilesGrid />
       </div>
     </AppLayout>
   );

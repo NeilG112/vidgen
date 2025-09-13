@@ -1,8 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, onSnapshot, query } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import Image from "next/image";
+import Link from "next/link";
+import { formatDistanceToNow } from "date-fns";
+import { Clapperboard, Download, Play } from "lucide-react";
+
+import { useAuth } from "@/lib/auth";
+import { db } from "@/lib/firebase/client";
+import { type Profile } from "@/lib/types";
 
 import {
   Card,
@@ -19,17 +26,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/lib/auth";
-import { db } from "@/lib/firebase/client";
-import { type Profile } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatDistanceToNow } from "date-fns";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import GenerateVideoDialog from "./generate-video-dialog";
-import { Clapperboard, Download, Play, User } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import Link from "next/link";
 
 export default function ProfilesTable() {
   const { user } = useAuth();
@@ -39,22 +39,47 @@ export default function ProfilesTable() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setProfiles([]);
+      setIsLoading(false);
+      return;
+    }
 
     setIsLoading(true);
-    const q = query(collection(db, `users/${user.uid}/profiles`));
+    const q = query(
+      collection(db, `users/${user.uid}/profiles`),
+      orderBy("scrapedAt", "desc")
+    );
+
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const profilesData: Profile[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
+        
+        // The scrapedAt field is essential. If it's missing or invalid, skip this profile.
+        if (!data.scrapedAt?.toDate) {
+          return;
+        }
+
+        let video = null;
+        if (data.video) {
+            video = {
+                ...data.video,
+                createdAt: data.video.createdAt?.toDate ? data.video.createdAt.toDate() : new Date(),
+            }
+        }
+
         profilesData.push({
           id: doc.id,
           ...data,
-          scrapedAt: data.scrapedAt?.toDate(),
-          video: data.video ? { ...data.video, createdAt: data.video.createdAt?.toDate() } : null
+          scrapedAt: data.scrapedAt.toDate(),
+          video,
         } as Profile);
       });
-      setProfiles(profilesData.sort((a,b) => b.scrapedAt.getTime() - a.scrapedAt.getTime()));
+      setProfiles(profilesData);
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching profiles:", error);
       setIsLoading(false);
     });
 
@@ -98,13 +123,12 @@ export default function ProfilesTable() {
                     width={40}
                     height={40}
                     className="rounded-full"
-                    data-ai-hint="profile picture"
                 />
             </TableCell>
             <TableCell className="font-medium">{profile.fullName}</TableCell>
             <TableCell>{profile.headline}</TableCell>
             <TableCell className="text-muted-foreground">
-                {formatDistanceToNow(profile.scrapedAt, { addSuffix: true })}
+                {profile.scrapedAt ? formatDistanceToNow(profile.scrapedAt, { addSuffix: true }) : '-'}
             </TableCell>
              <TableCell>
             {profile.video ? (
@@ -119,7 +143,9 @@ export default function ProfilesTable() {
                   <div className="space-y-4">
                     <video src={profile.video.downloadUrl} controls className="w-full rounded-md" />
                     <div className="flex justify-between items-center">
-                        <p className="text-xs text-muted-foreground">Generated {formatDistanceToNow(profile.video.createdAt, { addSuffix: true })}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {profile.video.createdAt ? `Generated ${formatDistanceToNow(profile.video.createdAt, { addSuffix: true })}` : ''}
+                        </p>
                         <Button asChild size="sm">
                             <Link href={profile.video.downloadUrl} target="_blank" download>
                                 <Download className="mr-2 h-4 w-4"/>

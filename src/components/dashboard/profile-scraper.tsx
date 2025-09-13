@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, PlusCircle, Trash2, UploadCloud } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { scrapeProfiles } from "@/lib/actions/profileActions";
+import { useAuth } from "@/lib/auth";
 
 const urlSchema = z.string().url().refine(
   (url) => url.startsWith("https://www.linkedin.com/in/"),
@@ -35,6 +36,7 @@ const formSchema = z.object({
 });
 
 export default function ProfileScraper() {
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -51,10 +53,20 @@ export default function ProfileScraper() {
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Authentication Error",
+        description: "You must be logged in to scrape profiles.",
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
+      const idToken = await user.getIdToken();
       const urls = values.profileUrls.map(item => item.value);
-      await scrapeProfiles({ profileUrls: urls });
+      await scrapeProfiles({ profileUrls: urls, idToken });
       toast({
         title: "Scraping Started",
         description: "Your profiles are being scraped. You can track progress on the Jobs page.",

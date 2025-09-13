@@ -1,30 +1,46 @@
 "use server";
 
 import { z } from "zod";
-import { getAuthenticatedUser } from "@/lib/auth";
+import { getAuthenticatedUser } from "@/lib/server-auth";
 import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { createJob, updateJob } from "./jobActions";
 
 const scrapeProfilesSchema = z.object({
   profileUrls: z.array(z.string().url()).max(10).nonempty(),
+  idToken: z.string(),
 });
 
 // Helper function to delay execution
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-export async function scrapeProfiles(input: { profileUrls: string[] }) {
-  const user = await getAuthenticatedUser();
-  if (!user) {
-    throw new Error("You must be logged in to perform this action.");
-  }
+// Helper function to sanitize string for Firestore ID
+const sanitizeForFirestoreId = (id: string) => {
+    return id.replace(/[.\#$[\],/]/g, '_');
+}
 
+export async function scrapeProfiles(input: { profileUrls: string[], idToken: string }) {
+  console.log("Starting scrapeProfiles function with input:", input.profileUrls);
   const validation = scrapeProfilesSchema.safeParse(input);
   if (!validation.success) {
+    console.error("Input validation failed:", validation.error);
     throw new Error("Invalid input: Please provide 1 to 10 valid profile URLs.");
   }
+
+  const { profileUrls, idToken } = validation.data;
   
-  const { profileUrls } = validation.data;
+  let user;
+  try {
+    user = await getAuthenticatedUser(idToken);
+    console.log("Authenticated user:", user.uid);
+  } catch (error) {
+    console.error("Firebase Auth Error in scrapeProfiles:", error);
+    throw new Error("Server-side authentication failed.");
+  }
+
+  if (!user) {
+    throw new Error("Authentication failed.");
+  }
   
   const jobId = await createJob({
     userId: user.uid,
@@ -32,20 +48,20 @@ export async function scrapeProfiles(input: { profileUrls: string[] }) {
     status: "pending",
     metadata: { urls: profileUrls }
   });
+  console.log(`Created job ${jobId} for user ${user.uid}`);
 
   try {
     await updateJob({ userId: user.uid, jobId, status: "running" });
 
-    // TODO: set in .env
     const apifyToken = process.env.APIFY_TOKEN;
-    // TODO: set in .env
     const apifyActorId = process.env.APIFY_ACTOR_ID;
 
     if (!apifyToken || !apifyActorId) {
+        console.error("Apify configuration missing.");
         throw new Error("Apify configuration is missing on the server.");
     }
     
-    // 1. Start Apify actor run
+    console.log(`Starting Apify actor ${apifyActorId}`);
     const runResponse = await fetch(
       `https://api.apify.com/v2/acts/${apifyActorId}/runs?token=${apifyToken}`,
       {
@@ -56,16 +72,19 @@ export async function scrapeProfiles(input: { profileUrls: string[] }) {
     );
     
     if (!runResponse.ok) {
+      const errorBody = await runResponse.text();
+      console.error(`Apify actor run failed to start. Status: ${runResponse.status}, Body: ${errorBody}`);
       throw new Error(`Apify actor run failed to start. Status: ${runResponse.status}`);
     }
     const runData = await runResponse.json();
     const { id: runId, defaultDatasetId: datasetId } = runData.data;
+    console.log(`Apify actor run started with runId: ${runId}, datasetId: ${datasetId}`);
 
-    // 2. Poll for actor run completion
     let runStatus = '';
     const maxRetries = 30; // 5 minutes timeout (30 * 10s)
     let retries = 0;
 
+    console.log("Polling for Apify run to finish...");
     while (runStatus !== 'SUCCEEDED' && retries < maxRetries) {
       retries++;
       await delay(10000); // Wait for 10 seconds
@@ -73,6 +92,7 @@ export async function scrapeProfiles(input: { profileUrls: string[] }) {
       const statusResponse = await fetch(`https://api.apify.com/v2/acts/${apifyActorId}/runs/${runId}?token=${apifyToken}`);
       const statusData = await statusResponse.json();
       runStatus = statusData.data.status;
+      console.log(`Polling attempt ${retries}: Apify run status is ${runStatus}`);
 
       if (runStatus === 'FAILED' || runStatus === 'TIMED-OUT') {
         throw new Error(`Apify actor run ${runStatus}.`);
@@ -83,48 +103,108 @@ export async function scrapeProfiles(input: { profileUrls: string[] }) {
       throw new Error("Apify actor run timed out after 5 minutes.");
     }
 
-    // 3. Fetch dataset items
-    const itemsResponse = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?token=${apifyToken}&format=json`);
+    console.log("Apify run finished. Fetching results from dataset...");
+    const itemsResponse = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?token=${apifyToken}&clean=true&format=json`);
     if (!itemsResponse.ok) {
+        console.error("Failed to fetch results from Apify dataset.", itemsResponse.statusText);
         throw new Error("Failed to fetch results from Apify dataset.");
     }
     const scrapedProfiles = await itemsResponse.json();
 
-    // 4. Normalize and save to Firestore
+    if (!scrapedProfiles || scrapedProfiles.length === 0) {
+        console.warn("Scraping completed, but no profiles were found.");
+        await updateJob({ 
+            userId: user.uid, 
+            jobId, 
+            status: "succeeded",
+            metadata: { info: "Scraping completed, but no profiles were found or returned." }
+        });
+        return; 
+    }
+
+    console.log(`Found ${scrapedProfiles.length} profiles. Preparing to save to Firestore.`);
     const batch = adminDb.batch();
     for (const profile of scrapedProfiles) {
-      const profileId = profile.publicIdentifier;
-      if (!profileId) continue;
+      const profileUrl = profile.linkedinUrl || profile.url;
 
+      if (!profileUrl) {
+        console.warn("Skipping profile with no URL:", profile);
+        continue;
+      }
+      const profileId = sanitizeForFirestoreId(profileUrl);
       const profileRef = adminDb.collection(`users/${user.uid}/profiles`).doc(profileId);
       
+      let firstName = profile.firstName;
+      let lastName = profile.lastName;
+      let fullName = profile.fullName;
+
+      if (!fullName && profileUrl) {
+        const slug = profileUrl.split('/in/')[1]?.split('/')[0];
+        if (slug) {
+            const nameSlug = slug.replace(/-[a-z0-9]+$/, '');
+            const nameParts = nameSlug.split('-').map(part => part.charAt(0).toUpperCase() + part.slice(1));
+            fullName = nameParts.join(' ');
+            firstName = nameParts[0];
+            lastName = nameParts.slice(1).join(' ');
+        }
+      }
+
+      const transformedExperience = (profile.experiences || []).flatMap((exp: any) => {
+        const formatDescription = (description: any[]) => {
+          if (!description) return '';
+          return description.map((d: any) => d.text).join('\n\n');
+        }
+    
+        if (exp.breakdown && exp.subComponents) {
+          return exp.subComponents.map((subExp: any) => ({
+            title: subExp.title?.trim() || '',
+            company: exp.title?.trim() || '',
+            duration: subExp.caption?.trim() || '',
+            description: formatDescription(subExp.description),
+          }));
+        }
+        return {
+          title: exp.title?.trim() || '',
+          company: exp.subtitle?.split('·')[0]?.trim() || '',
+          duration: exp.caption?.trim() || '',
+          location: exp.metadata?.trim() || '',
+          description: formatDescription(exp.subComponents?.[0]?.description),
+        };
+      });
+
       const normalizedProfile = {
-        linkedinUrl: profile.url,
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        fullName: profile.fullName,
-        headline: profile.headline,
-        location: profile.location,
-        profilePic: profile.imgUrl,
-        skills: profile.skills || [],
-        currentCompany: profile.experience?.[0]?.company,
+        linkedinUrl: profileUrl,
+        firstName: firstName || '',
+        lastName: lastName || '',
+        fullName: fullName || '',
+        headline: profile.headline || profile.jobTitle || '',
+        about: profile.about || '',
+        experience: transformedExperience,
+        location: profile.location || profile.addressWithCountry || '',
+        profilePic: profile.profilePic || profile.profilePicHighQuality || profile.imgUrl || profile.imageUrl || '',
+        skills: profile.skills?.map((s:any) => s.name) || profile.topSkillsByEndorsements?.map((s: any) => s.skill) || [],
+        currentCompany: profile.companyName || transformedExperience[0]?.company || '',
         scrapedAt: FieldValue.serverTimestamp(),
         video: null,
       };
+
+      console.log(`Adding profile ${profileId} to Firestore batch.`);
       batch.set(profileRef, normalizedProfile, { merge: true });
     }
+    
     await batch.commit();
+    console.log("Successfully committed batch to Firestore.");
 
     await updateJob({ userId: user.uid, jobId, status: "succeeded" });
 
   } catch (error: any) {
+    console.error(`Job ${jobId} failed with error:`, error.message);
     await updateJob({ 
         userId: user.uid, 
         jobId, 
         status: "failed", 
         metadata: { error: error.message }
     });
-    // Re-throw the error to be caught by the client
     throw error;
   }
 }
