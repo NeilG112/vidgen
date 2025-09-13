@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { getAuthenticatedUser } from "@/lib/auth";
+import { getAuthenticatedUser } from "@/lib/server-auth";
 import { adminDb, adminStorage } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { createJob, updateJob } from "./jobActions";
@@ -9,18 +9,28 @@ import { createJob, updateJob } from "./jobActions";
 const generateVideoSchema = z.object({
   profileId: z.string(),
   script: z.string().min(10).max(1000),
+  idToken: z.string(),
 });
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-export async function generateVideo(input: { profileId: string, script: string }) {
-  const user = await getAuthenticatedUser();
-  if (!user) throw new Error("Authentication required.");
-
+export async function generateVideo(input: { profileId: string, script: string, idToken: string }) {
   const validation = generateVideoSchema.safeParse(input);
   if (!validation.success) throw new Error("Invalid input.");
 
-  const { profileId, script } = validation.data;
+  const { profileId, script, idToken } = validation.data;
+  
+  let user;
+  try {
+    user = await getAuthenticatedUser(idToken);
+  } catch (error) {
+    console.error("Firebase Auth Error in generateVideo:", error);
+    throw new Error("Server-side authentication failed.");
+  }
+
+  if (!user) {
+    throw new Error("Authentication failed.");
+  }
 
   const jobId = await createJob({
     userId: user.uid,

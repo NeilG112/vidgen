@@ -182,11 +182,21 @@ export async function scrapeProfiles(input: { profileUrls: string[], idToken: st
         experience: transformedExperience,
         location: profile.location || profile.addressWithCountry || '',
         profilePic: profile.profilePic || profile.profilePicHighQuality || profile.imgUrl || profile.imageUrl || '',
-        skills: profile.skills?.map((s:any) => s.name) || profile.topSkillsByEndorsements?.map((s: any) => s.skill) || [],
+        skills: (profile.skills?.map((s:any) => s.name).filter((name: any) => name && typeof name === 'string') || 
+                 profile.topSkillsByEndorsements?.map((s: any) => s.skill).filter((skill: any) => skill && typeof skill === 'string') || 
+                 []),
         currentCompany: profile.companyName || transformedExperience[0]?.company || '',
         scrapedAt: FieldValue.serverTimestamp(),
         video: null,
       };
+
+      // Additional validation to ensure no undefined values
+      Object.keys(normalizedProfile).forEach(key => {
+        if (normalizedProfile[key as keyof typeof normalizedProfile] === undefined) {
+          console.warn(`Found undefined value for key: ${key}, setting to empty string`);
+          (normalizedProfile as any)[key] = '';
+        }
+      });
 
       console.log(`Adding profile ${profileId} to Firestore batch.`);
       batch.set(profileRef, normalizedProfile, { merge: true });

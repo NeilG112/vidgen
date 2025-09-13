@@ -18,6 +18,7 @@ import { type Profile } from "@/lib/types";
 import { generatePersonalizedIntroScript } from "@/ai/flows/generate-personalized-intro-script";
 import { improveIntroScript } from "@/ai/flows/improve-intro-script";
 import { generateVideo } from "@/lib/actions/videoActions";
+import { useAuth } from "@/lib/auth";
 import { Loader2, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -33,6 +34,7 @@ export default function ProfileDetailsDialog({ profile, isOpen, onOpenChange }: 
   const [isGenerating, setIsGenerating] = useState(false);
   const [isImproving, setIsImproving] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (profile && isOpen) {
@@ -83,10 +85,11 @@ export default function ProfileDetailsDialog({ profile, isOpen, onOpenChange }: 
   };
 
   const handleGenerateVideo = async () => {
-    if (!profile) return;
+    if (!profile || !user) return;
     setIsGenerating(true);
     try {
-      await generateVideo({ profileId: profile.id, script });
+      const idToken = await user.getIdToken();
+      await generateVideo({ profileId: profile.id, script, idToken });
       toast({
         title: "Video Generation Started",
         description: "Your video is being created. You can track its progress on the Jobs page.",
