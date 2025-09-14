@@ -159,6 +159,25 @@ export default function ProfileDetailsDialog({ profile, isOpen, onOpenChange }: 
               </div>
             </div>
 
+            {profile.video && (
+              <div>
+                <h3 className="font-semibold mb-2">Generated Video</h3>
+                <div className="bg-muted rounded-lg p-4">
+                  <video 
+                    controls 
+                    className="w-full max-w-md mx-auto rounded-lg"
+                    poster={profile.profilePic}
+                  >
+                    <source src={profile.video.downloadUrl} type="video/mp4" />
+                    Your browser does not support the video tag.
+                  </video>
+                  <p className="text-xs text-muted-foreground mt-2 text-center">
+                    Generated on {new Date(profile.video.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="grid w-full gap-2">
               <Label htmlFor="script">Intro Script</Label>
               {isGenerating && !script ? (

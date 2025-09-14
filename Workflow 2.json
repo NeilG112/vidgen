@@ -1,0 +1,909 @@
+{
+  "name": "Workflow 2",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "37c1e647-92b3-4a94-94ec-1cf0e978e367",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -368,
+        -32
+      ],
+      "id": "8384ce71-7476-4689-8832-c4bf4227feff",
+      "name": "Webhook",
+      "webhookId": "37c1e647-92b3-4a94-94ec-1cf0e978e367"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.apify.com/v2/datasets/{{ $json.body.resource.defaultDatasetId }}/items",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "applications/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "YOUR_APIFY_API_TOKEN_HERE"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -160,
+        -32
+      ],
+      "id": "22b4a3a7-f112-48fc-93ac-b5a4226140a1",
+      "name": "HTTP Request to get the Dataset"
+    },
+    {
+      "parameters": {
+        "url": "https://api.heygen.com/v1/video_status.get",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "video_id",
+              "value": "={{ $('Generate video4').item.json.data.video_id }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        576,
+        -32
+      ],
+      "id": "8a92d6f3-1b82-4467-aece-8a26bd05ca48",
+      "name": "Get video4",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "oQTbKverTtfrQBUH",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.heygen.com/v2/video/generate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"video_inputs\": [\n    {\n      \"character\": {\n        \"type\": \"avatar\",\n        \"avatar_id\": \"ac72701672634f579fe2a91e24db80f2\",\n        \"avatar_style\": \"normal\"\n      },\n      \"voice\": {\n        \"type\": \"text\",\n        \"voice_id\": \"46baf13f511f43d292cf1e3995da0e5b\",\n        \"input_text\": \"hallo das ist ein test\",\n        \"speed\": 1.1\n      }\n      \n    }\n     \n  ],\n  \"dimension\": {\n    \"width\": 1280,\n    \"height\": 720\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        128,
+        -32
+      ],
+      "id": "185be944-8007-48a5-a2af-f6e800bb3319",
+      "name": "Generate video4",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "oQTbKverTtfrQBUH",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "6de266a9-1c4d-40af-a8f4-7b478b91ab1b",
+              "leftValue": "={{ $json.data.status }}",
+              "rightValue": "completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        784,
+        -32
+      ],
+      "id": "da269d6f-08fa-47bd-b729-192d5e8a561f",
+      "name": "If3"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1072,
+        -16
+      ],
+      "id": "878601a9-f771-4737-ac01-031baae01f19",
+      "name": "Wait7",
+      "webhookId": "bfa3a546-e81a-48f9-aebe-adbf1cba68fc"
+    },
+    {
+      "parameters": {
+        "name": "video",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "root",
+          "cachedResultName": "/ (Root folder)"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1312,
+        -176
+      ],
+      "id": "928c03cd-e60f-420b-821f-006b86d7a853",
+      "name": "Upload file1",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "DAooyKD3PptEeKD8",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.data.video_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        944,
+        -176
+      ],
+      "id": "c5b8b25c-94fc-48ee-bb54-75f1f6853139",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "oQTbKverTtfrQBUH",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "neilganguly2007@gmail.com",
+        "subject": "test",
+        "message": "test",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1600,
+        -176
+      ],
+      "id": "4c08f57b-eb48-4b2c-a852-bb618d12f3d9",
+      "name": "Send a message",
+      "webhookId": "9057c9c8-76ef-42d0-aee3-abbd7222c9a0",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "1o5KyzaFDi4cC1Hp",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "HTTP Request to get the Dataset": [
+      {
+        "json": {
+          "linkedinUrl": "https://www.linkedin.com/in/andreas-bartl-7944a0141/",
+          "firstName": "Andreas",
+          "lastName": "Bartl",
+          "fullName": "Andreas Bartl",
+          "headline": "Wer heute nichts ändert, arbeitet morgen wie von gestern. Ich bringe Top-Talente zu innovativen Projekten im Bereich PropTech- und Construction🌳",
+          "connections": 2789,
+          "followers": 3190,
+          "email": null,
+          "mobileNumber": null,
+          "jobTitle": null,
+          "companyName": null,
+          "companyIndustry": null,
+          "companyWebsite": null,
+          "companyLinkedin": null,
+          "companyFoundedIn": null,
+          "companySize": null,
+          "currentJobDuration": null,
+          "currentJobDurationInYrs": 0,
+          "topSkillsByEndorsements": "Vertrieb, Kundengewinnung, Business-to-Business (B2B), Personalbeschaffung, Recruiting",
+          "addressCountryOnly": "Germany",
+          "addressWithCountry": "Munich, Bavaria, Germany",
+          "addressWithoutCountry": "Munich, Bavaria",
+          "profilePic": "https://media.licdn.com/dms/image/v2/D4D03AQHg0bfWPrW30w/profile-displayphoto-scale_200_200/B4DZk4kO8QIcAc-/0/1757590647231?e=1760572800&v=beta&t=-PP2LlnLNghuf2j-8TDTb73m-qUDqZ61JcZdq24hmJU",
+          "profilePicHighQuality": "https://media.licdn.com/dms/image/v2/D4D03AQHg0bfWPrW30w/profile-displayphoto-crop_800_800/B4DZk4kO8QIcAM-/0/1757590647137?e=1760572800&v=beta&t=74IU51bnjVXIOpaU_APlWQZNsx4yN9UIO8RgzZQlulg",
+          "about": null,
+          "publicIdentifier": "andreas-bartl-7944a0141",
+          "openConnection": true,
+          "urn": "ACoAACJr7mABLWt-9mUvCQvqXnT2BAoWT3GFnmY",
+          "experiences": [],
+          "updates": [],
+          "skills": [
+            {
+              "title": "Strategische Beratung",
+              "subComponents": [
+                {
+                  "description": [
+                    {
+                      "type": "insightComponent",
+                      "text": "Head of Talent Acquisition (Group TA Manager) at NOKERA AG"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Vorstellungsgespräche",
+              "subComponents": [
+                {
+                  "description": [
+                    {
+                      "type": "insightComponent",
+                      "text": "Head of Talent Acquisition (Group TA Manager) at NOKERA AG"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Lever",
+              "subComponents": [
+                {
+                  "description": []
+                }
+              ]
+            },
+            {
+              "title": "Greenhouse",
+              "subComponents": [
+                {
+                  "description": []
+                }
+              ]
+            },
+            {
+              "title": "Personio",
+              "subComponents": [
+                {
+                  "description": []
+                }
+              ]
+            },
+            {
+              "title": "Sourcing",
+              "subComponents": [
+                {
+                  "description": []
+                }
+              ]
+            },
+            {
+              "title": "Active Sourcing",
+              "subComponents": [
+                {
+                  "description": [
+                    {
+                      "type": "insightComponent",
+                      "text": "6 experiences across NOKERA AG and 4 other companies"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "E-Recruiting",
+              "subComponents": [
+                {
+                  "description": []
+                }
+              ]
+            },
+            {
+              "title": "Recruiting",
+              "subComponents": [
+                {
+                  "description": [
+                    {
+                      "type": "insightComponent",
+                      "text": "1 endorsement"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Google Adwords",
+              "subComponents": [
+                {
+                  "description": [
+                    {
+                      "type": "insightComponent",
+                      "text": "1 endorsement"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "AutoPro",
+              "subComponents": [
+                {
+                  "description": [
+                    {
+                      "type": "insightComponent",
+                      "text": "1 endorsement"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Vertrieb",
+              "subComponents": [
+                {
+                  "description": [
+                    {
+                      "type": "insightComponent",
+                      "text": "4 endorsements"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Kundengewinnung",
+              "subComponents": [
+                {
+                  "description": [
+                    {
+                      "type": "insightComponent",
+                      "text": "4 endorsements"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Business-to-Business (B2B)",
+              "subComponents": [
+                {
+                  "description": [
+                    {
+                      "type": "insightComponent",
+                      "text": "4 endorsements"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Personalbeschaffung",
+              "subComponents": [
+                {
+                  "description": [
+                    {
+                      "type": "insightComponent",
+                      "text": "2 endorsements"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Geschäftsentwicklung",
+              "subComponents": [
+                {
+                  "description": [
+                    {
+                      "type": "insightComponent",
+                      "text": "Head of Talent Acquisition (Group TA Manager) at NOKERA AG"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Vertriebsaktivitäten",
+              "subComponents": [
+                {
+                  "description": []
+                }
+              ]
+            },
+            {
+              "title": "Management",
+              "subComponents": [
+                {
+                  "description": [
+                    {
+                      "type": "insightComponent",
+                      "text": "1 endorsement"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Account-Management",
+              "subComponents": [
+                {
+                  "description": [
+                    {
+                      "type": "insightComponent",
+                      "text": "1 endorsement"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Innovationsentwicklung",
+              "subComponents": [
+                {
+                  "description": []
+                }
+              ]
+            }
+          ],
+          "profilePicAllDimensions": [
+            {
+              "width": 200,
+              "height": 200,
+              "url": "https://media.licdn.com/dms/image/v2/D4D03AQHg0bfWPrW30w/profile-displayphoto-scale_200_200/B4DZk4kO8QIcAc-/0/1757590647231?e=1760572800&v=beta&t=-PP2LlnLNghuf2j-8TDTb73m-qUDqZ61JcZdq24hmJU"
+            },
+            {
+              "width": 800,
+              "height": 800,
+              "url": "https://media.licdn.com/dms/image/v2/D4D03AQHg0bfWPrW30w/profile-displayphoto-crop_800_800/B4DZk4kO8QIcAM-/0/1757590647137?e=1760572800&v=beta&t=74IU51bnjVXIOpaU_APlWQZNsx4yN9UIO8RgzZQlulg"
+            },
+            {
+              "width": 400,
+              "height": 400,
+              "url": "https://media.licdn.com/dms/image/v2/D4D03AQHg0bfWPrW30w/profile-displayphoto-scale_400_400/B4DZk4kO8QIcAk-/0/1757590647231?e=1760572800&v=beta&t=EE_Bz2lUdDofjzENagHP7SThK0vOWh_aAzjfruC3aRw"
+            },
+            {
+              "width": 100,
+              "height": 100,
+              "url": "https://media.licdn.com/dms/image/v2/D4D03AQHg0bfWPrW30w/profile-displayphoto-scale_100_100/B4DZk4kO8QIcAg-/0/1757590647231?e=1760572800&v=beta&t=3jnplkFADBL-UHQUjAWQDI6bMrxYrmRXGFtTyIFAyzs"
+            }
+          ],
+          "educations": [],
+          "licenseAndCertificates": [],
+          "honorsAndAwards": [],
+          "languages": [],
+          "volunteerAndAwards": [],
+          "verifications": [],
+          "promos": [],
+          "highlights": [],
+          "projects": [],
+          "publications": [],
+          "patents": [],
+          "courses": [],
+          "testScores": [],
+          "organizations": [],
+          "volunteerCauses": [],
+          "interests": [
+            {
+              "section_name": "Companies",
+              "section_components": [
+                {
+                  "titleV2": "SIXT",
+                  "caption": "156,775 followers",
+                  "size": "LARGE",
+                  "textActionTarget": "https://www.linkedin.com/company/17120/",
+                  "subComponents": []
+                },
+                {
+                  "titleV2": "Automobili Lamborghini S.p.A.",
+                  "caption": "1,258,776 followers",
+                  "size": "LARGE",
+                  "textActionTarget": "https://www.linkedin.com/company/51253/",
+                  "subComponents": []
+                }
+              ]
+            },
+            {
+              "section_name": "Groups",
+              "section_components": [
+                {
+                  "titleV2": "Gründerszene CHRO Circle",
+                  "caption": "52 members",
+                  "size": "LARGE",
+                  "textActionTarget": "https://www.linkedin.com/groups/12986568",
+                  "subComponents": []
+                },
+                {
+                  "titleV2": "The Sales Management Community",
+                  "caption": "42,307 members",
+                  "size": "LARGE",
+                  "textActionTarget": "https://www.linkedin.com/groups/14192801",
+                  "subComponents": []
+                }
+              ]
+            },
+            {
+              "section_name": "Schools",
+              "section_components": [
+                {
+                  "titleV2": "Manage and More by UnternehmerTUM",
+                  "caption": "5,797 followers",
+                  "size": "LARGE",
+                  "textActionTarget": "https://www.linkedin.com/school/22291036/",
+                  "subComponents": []
+                },
+                {
+                  "titleV2": "OTH Regensburg",
+                  "caption": "31,258 followers",
+                  "size": "LARGE",
+                  "textActionTarget": "https://www.linkedin.com/school/15091801/",
+                  "subComponents": []
+                }
+              ]
+            }
+          ],
+          "recommendations": [
+            {
+              "section_name": "Received",
+              "section_components": [
+                {
+                  "titleV2": "Philipp Tobergte",
+                  "caption": "February 21, 2023, Philipp managed Andreas directly",
+                  "subtitle": "Owner @ Bamboo Consultancy | Business Development, Expansion, M&A",
+                  "size": "LARGE",
+                  "textActionTarget": "https://www.linkedin.com/in/philipptobergte",
+                  "image": "https://media.licdn.com/dms/image/v2/C4E03AQHbYziZHlaioA/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1617694278356?e=1760572800&v=beta&t=-sQ1a-qjj4vdeLt90EEfLxVgj_FvOaWGc-Y9WEjTcF4",
+                  "subComponents": [
+                    {
+                      "fixedListComponent": [
+                        {
+                          "type": "textComponent",
+                          "text": "I worked with Andreas in several positions and on various projects. He is a hardworking, trustworthy and no-nonsense collegue who will always go the extra mile to succeed in whatever he is doing. I can highly recommend him for various positions - especially on the commercial side. "
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "titleV2": "Agathe Tavernier",
+                  "caption": "November 22, 2022, Agathe was Andreas’ client",
+                  "subtitle": "Head of People - Spain @Skello",
+                  "size": "LARGE",
+                  "textActionTarget": "https://www.linkedin.com/in/agathe-tavernier-8198125b",
+                  "image": "https://media.licdn.com/dms/image/v2/C4D03AQHiPct0Fz1Ccg/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1515623698718?e=1760572800&v=beta&t=YiZQO03u3qxHw-62OmYNUB7X_Ir0OqBB91smywvRKv4",
+                  "subComponents": [
+                    {
+                      "fixedListComponent": [
+                        {
+                          "type": "textComponent",
+                          "text": "We worked with Andreas for 9 months and I can only recommend him.\n\nAndreas was a key element to launch us on the German market and he allowed us to make our first recruitments in Germany.\n\nIt is his assiduous and regular hunting, his experience on the German market, his professionalism and his interest in the candidate experience that allowed him to succeed.\n\nThank you for your work Andreas!"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "section_name": "Given",
+              "section_components": []
+            }
+          ]
+        }
+      }
+    ],
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "andreasb.app.n8n.cloud",
+            "user-agent": "axios/1.8.4",
+            "content-length": "1808",
+            "accept": "application/json, text/plain, */*",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "13.216.180.86",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "US",
+            "cf-ray": "97df1b0577e0d647-IAD",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "traceparent": "00-969fcb1aee3304f0c7b0277e63989894-1b461799008364b9-01",
+            "x-apify-request-origin": "WEBHOOK",
+            "x-apify-webhook": "yo",
+            "x-apify-webhook-dispatch-id": "qr5IPHFrfEoAsCj4g",
+            "x-forwarded-for": "13.216.180.86, 172.70.34.20",
+            "x-forwarded-host": "andreasb.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-63-757945c69-ks4x2",
+            "x-is-trusted": "yes",
+            "x-real-ip": "13.216.180.86"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "userId": "CcMNPn4p5vwYh22kq",
+            "createdAt": "2025-09-12T11:36:08.494Z",
+            "eventType": "ACTOR.RUN.CREATED",
+            "eventData": {
+              "actorId": "2SyF0bVxmgGr8IVCZ",
+              "actorRunId": "cCO3uJE90lKYS26ow"
+            },
+            "resource": {
+              "id": "cCO3uJE90lKYS26ow",
+              "actId": "2SyF0bVxmgGr8IVCZ",
+              "userId": "CcMNPn4p5vwYh22kq",
+              "startedAt": "2025-09-12T11:36:02.384Z",
+              "finishedAt": "2025-09-12T11:36:07.380Z",
+              "status": "SUCCEEDED",
+              "meta": {
+                "origin": "API",
+                "userAgent": "axios/1.8.3"
+              },
+              "stats": {
+                "inputBodyLen": 72,
+                "migrationCount": 0,
+                "rebootCount": 0,
+                "restartCount": 0,
+                "durationMillis": 4906,
+                "resurrectCount": 0,
+                "runTimeSecs": 4.906,
+                "metamorph": 0,
+                "computeUnits": 0.0006813888888888889,
+                "memAvgBytes": 43839672.61882071,
+                "memMaxBytes": 47706112,
+                "memCurrentBytes": 0,
+                "cpuAvgUsage": 0.46490170123502206,
+                "cpuMaxUsage": 62.46674846625767,
+                "cpuCurrentUsage": 0,
+                "netRxBytes": 32958,
+                "netTxBytes": 13524
+              },
+              "options": {
+                "build": "0.0.79",
+                "timeoutSecs": 300,
+                "memoryMbytes": 512,
+                "maxItems": 424,
+                "diskMbytes": 2048
+              },
+              "buildId": "LTTzUNG82HP5vpOB7",
+              "exitCode": 0,
+              "defaultKeyValueStoreId": "iI1T9FXGKhNfEXn5o",
+              "defaultDatasetId": "RcetVm4KUaODTcISq",
+              "defaultRequestQueueId": "Xmh9z9v6asjx3uvWs",
+              "pricingInfo": {
+                "pricingModel": "PRICE_PER_DATASET_ITEM",
+                "reasonForChange": null,
+                "pricePerUnitUsd": 0.01,
+                "unitName": "result",
+                "createdAt": "2024-10-15T20:27:21.315Z",
+                "startedAt": "2024-10-15T20:27:21.315Z",
+                "apifyMarginPercentage": 0.2,
+                "notifiedAboutChangeAt": "2024-10-15T20:39:17.331Z"
+              },
+              "platformUsageBillingModel": "DEVELOPER",
+              "integrationTracking": {
+                "platform": "n8n",
+                "appId": null
+              },
+              "generalAccess": "FOLLOW_USER_SETTING",
+              "buildNumber": null,
+              "containerUrl": "https://c6g6tzfjzihp.runs.apify.net",
+              "links": {
+                "publicRunUrl": "https://console.apify.com/view/runs/cCO3uJE90lKYS26ow",
+                "consoleRunUrl": "https://console.apify.com/actors/2SyF0bVxmgGr8IVCZ/runs/cCO3uJE90lKYS26ow",
+                "apiRunUrl": "https://api.apify.com/v2/actor-runs/cCO3uJE90lKYS26ow"
+              }
+            }
+          },
+          "webhookUrl": "https://andreasb.app.n8n.cloud/webhook-test/37c1e647-92b3-4a94-94ec-1cf0e978e367",
+          "executionMode": "test"
+        }
+      }
+    ],
+    "Get video4": [
+      {
+        "json": {
+          "code": 100,
+          "data": {
+            "callback_id": null,
+            "caption_url": "",
+            "created_at": 1757623875,
+            "duration": 2.555,
+            "error": null,
+            "gif_url": null,
+            "id": "07e5e4a23cf04984ac6473326a6d1de4",
+            "status": "completed",
+            "thumbnail_url": "https://files2.heygen.ai/aws_pacific/avatar_tmp/73405f259cfe4072862c9298a3564590/07e5e4a23cf04984ac6473326a6d1de4.jpeg?Expires=1758228711&Signature=QP2Vi5GQXPB1Pjrwyz6K6hfQS1kK~Xsexcl5Gl~jneEuIj2jj6F9BWgysE7u5XoykKd64mehCWJmCdsE4p4TL2x2Q9QXUEe3dE07OKH3mThvtF9UkQ1UBpSJ529Z60zV7xSc5aD-Kq62rh19JOKxFMPquFMgZu5uijuT0WSsgaVvlX8gAdf6kKI4q~uvQJm838sfWG-JupXnji75dGrI6HDXoFj2ob~r41rMbaIkFuZ5inedhb68ruDdYbHJqJv673SeVFfA--IeGOHwlvntJUhuqRhkATx3yvt~LGCjQB54pgUJxHf9vs0sAuarZWcm~vXXk4H0wc6L07-ZESawNA__&Key-Pair-Id=K38HBHX5LX3X2H",
+            "video_url": "https://files2.heygen.ai/aws_pacific/avatar_tmp/73405f259cfe4072862c9298a3564590/07e5e4a23cf04984ac6473326a6d1de4.mp4?Expires=1758228711&Signature=nRJCD45CJuw3yqZz-KnySr7u092wPvY6OPKJi6UPBdx5vofNzxe6dIJy0VMquoPnMMr4Nhcz4Tw3wFTDhPK-kk4j~Sd13sHvtCUh3-ccsAjVGZ2PGHuaVgk7l-cYVUdZO65-cBAPbm33Z2ucfMs~tqaGV-OJyXy2BsVChG6H1x1LLIkk1VwfX9sxeD5G4z5JIBW3n6rrZ3jJ0vbAenCIi-sVVdMo4d08Qg8HDDFd8Y-FI5y5rFlouhidQGOdaRaxHk1jn5lOpeV8OZJE9u7iKOJCOMK7MPaM14hsX3wjDP4LNEEZJA-MQzkK1OXHHUDnWjXfVD39m1HXHh-3uRkB-w__&Key-Pair-Id=K38HBHX5LX3X2H",
+            "video_url_caption": null
+          },
+          "message": "Success"
+        }
+      }
+    ],
+    "Generate video4": [
+      {
+        "json": {
+          "error": null,
+          "data": {
+            "video_id": "07e5e4a23cf04984ac6473326a6d1de4"
+          }
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request to get the Dataset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get video4": {
+      "main": [
+        [
+          {
+            "node": "If3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate video4": {
+      "main": [
+        [
+          {
+            "node": "Get video4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If3": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait7": {
+      "main": [
+        [
+          {
+            "node": "Get video4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Upload file1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request to get the Dataset": {
+      "main": [
+        [
+          {
+            "node": "Generate video4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload file1": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "c4c4dd1e-48fd-40be-8ff5-9cbb07d504f1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ec82788a3dc86b45514f483b3753d152db9c50bde807a4ef62148e0220006a49"
+  },
+  "id": "d4RQ6QJRnwlntKaI",
+  "tags": []
+}
