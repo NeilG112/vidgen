@@ -82,7 +82,20 @@ export async function generateVideo(input: { profileId: string, script: string, 
     if (!generateResponse.ok) {
       const errorText = await generateResponse.text();
       console.error(`HeyGen generate API error: ${generateResponse.status} - ${errorText}`);
-      throw new Error(`HeyGen API error: ${generateResponse.status}`);
+      
+      // Try to parse error response for specific error codes
+      try {
+        const errorData = JSON.parse(errorText);
+        if (errorData.code === 'INSTANT_AVATAR_UNDER_REVIEW') {
+          throw new Error(`Your instant avatar is currently under review by HeyGen. This process typically takes 24-48 hours. Please check your HeyGen dashboard for updates.`);
+        } else if (errorData.code === 'AVATAR_NOT_APPROVED') {
+          throw new Error(`Your instant avatar was not approved by HeyGen. Please create a new avatar or contact HeyGen support.`);
+        }
+      } catch (parseError) {
+        // If we can't parse the error, fall back to generic error
+      }
+      
+      throw new Error(`HeyGen API error: ${generateResponse.status} - ${errorText}`);
     }
     
     const generateData = await generateResponse.json();
@@ -94,6 +107,9 @@ export async function generateVideo(input: { profileId: string, script: string, 
     
     const videoId = generateData.data.video_id;
     console.log(`HeyGen video generation started with ID: ${videoId}`);
+
+    // Persist videoId on the job so we can resume without regenerating
+    await updateJob({ userId: user.uid, jobId, status: "running", metadata: { videoId } });
 
     // 2. Poll for video completion (matching n8n workflow)
     let videoStatus = '';
@@ -127,7 +143,16 @@ export async function generateVideo(input: { profileId: string, script: string, 
         console.log("Video generation completed! URL:", videoUrl);
       } else if (videoStatus === 'failed') {
         console.error("Video generation failed:", statusData.data?.error);
-        throw new Error(`HeyGen video generation failed: ${statusData.data?.error || 'Unknown error'}`);
+        
+        // Handle specific error cases
+        const errorData = statusData.data?.error;
+        if (errorData?.code === 'INSTANT_AVATAR_UNDER_REVIEW') {
+          throw new Error(`Your instant avatar is currently under review by HeyGen. This process typically takes 24-48 hours. Please check your HeyGen dashboard for updates.`);
+        } else if (errorData?.code === 'AVATAR_NOT_APPROVED') {
+          throw new Error(`Your instant avatar was not approved by HeyGen. Please create a new avatar or contact HeyGen support.`);
+        } else {
+          throw new Error(`HeyGen video generation failed: ${JSON.stringify(errorData) || 'Unknown error'}`);
+        }
       }
     }
 
@@ -151,17 +176,25 @@ export async function generateVideo(input: { profileId: string, script: string, 
     const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
     console.log(`Downloaded video buffer size: ${videoBuffer.length} bytes`);
     
-    const storagePath = `videos/${user.uid}/${profileId}/${jobId}.mp4`;
-    const file = adminStorage.bucket().file(storagePath);
-    
-    await file.save(videoBuffer, {
-      metadata: { contentType: "video/mp4" },
-    });
-    
-    const [downloadUrl] = await file.getSignedUrl({
-        action: 'read',
-        expires: '03-09-2491' // A very long expiry date
-    });
+    let storagePath = `videos/${user.uid}/${profileId}/${jobId}.mp4`;
+    let downloadUrl = '';
+    try {
+      const file = adminStorage.bucket().file(storagePath);
+      await file.save(videoBuffer, {
+        metadata: { contentType: "video/mp4" },
+      });
+      const signed = await file.getSignedUrl({
+          action: 'read',
+          expires: '03-09-2491'
+      });
+      downloadUrl = signed[0];
+    } catch (e: any) {
+      console.warn('Storage upload failed. Falling back to direct HeyGen URL:', e?.message || e);
+      // Sanitize profileId for consistency in stored storagePath
+      const safeProfileId = String(profileId).replace(/[^a-zA-Z0-9_-]/g, '_');
+      storagePath = `videos/${user.uid}/${safeProfileId}/${jobId}.mp4`;
+      downloadUrl = videoUrl; // use HeyGen URL directly as fallback
+    }
 
     // 4. Update Firestore
     const profileRef = adminDb.collection(`users/${user.uid}/profiles`).doc(profileId);
@@ -184,4 +217,168 @@ export async function generateVideo(input: { profileId: string, script: string, 
     });
     throw error;
   }
+}
+
+export async function resumeVideo(input: { jobId: string, profileId: string, idToken: string }) {
+  const { jobId, profileId, idToken } = input;
+
+  let user;
+  try {
+    user = await getAuthenticatedUser(idToken);
+  } catch (error) {
+    console.error("Firebase Auth Error in resumeVideo:", error);
+    throw new Error("Server-side authentication failed.");
+  }
+
+  if (!user) {
+    throw new Error("Authentication failed.");
+  }
+
+  const heygenApiKey = process.env.HEYGEN_API_KEY;
+  if (!heygenApiKey) {
+    throw new Error("HeyGen configuration is missing on the server.");
+  }
+
+  // Fetch job to retrieve stored videoId
+  const jobRef = adminDb.collection(`users/${user.uid}/jobs`).doc(jobId);
+  const jobSnap = await jobRef.get();
+  if (!jobSnap.exists) {
+    throw new Error("Job not found.");
+  }
+
+  const jobData: any = jobSnap.data();
+  let videoId: string | undefined;
+  // metadata may be an array due to arrayUnion usage; find entry containing videoId
+  if (Array.isArray(jobData?.metadata)) {
+    for (const entry of jobData.metadata) {
+      if (entry && typeof entry === 'object' && entry.videoId) {
+        videoId = entry.videoId;
+      }
+    }
+  } else if (jobData?.metadata && jobData.metadata.videoId) {
+    videoId = jobData.metadata.videoId;
+  }
+
+  if (!videoId) {
+    throw new Error("No videoId found on the job. Unable to resume.");
+  }
+
+  await updateJob({ userId: user.uid, jobId, status: "running", metadata: { resume: true } });
+
+  // Poll for completion (or immediate success if already completed)
+  let videoStatus = '';
+  const maxRetries = 60; // 10 minutes
+  let retries = 0;
+  let videoUrl = '';
+
+  while (videoStatus !== 'completed' && retries < maxRetries) {
+    retries++;
+    const statusResponse = await fetch(`https://api.heygen.com/v1/video_status.get?video_id=${videoId}`, {
+      headers: {
+        "X-Api-Key": heygenApiKey,
+        "accept": "application/json",
+      },
+    });
+
+    if (!statusResponse.ok) {
+      await new Promise((r) => setTimeout(r, 10000));
+      continue;
+    }
+
+    const statusData = await statusResponse.json();
+    videoStatus = statusData.data?.status;
+    if (videoStatus === 'completed') {
+      videoUrl = statusData.data.video_url;
+    } else if (videoStatus === 'failed') {
+      const errorData = statusData.data?.error;
+      throw new Error(`HeyGen video generation failed: ${JSON.stringify(errorData) || 'Unknown error'}`);
+    } else {
+      await new Promise((r) => setTimeout(r, 10000));
+    }
+  }
+
+  if (!videoUrl) {
+    throw new Error("HeyGen video generation timed out after 10 minutes.");
+  }
+
+  // Download and upload to Firebase Storage
+  const videoResponse = await fetch(videoUrl, { headers: { accept: "application/json" } });
+  if (!videoResponse.ok) {
+    throw new Error(`Failed to download video from HeyGen: ${videoResponse.status}`);
+  }
+  const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
+
+  const storagePath = `videos/${user.uid}/${profileId}/${jobId}.mp4`;
+  const file = adminStorage.bucket().file(storagePath);
+  await file.save(videoBuffer, { metadata: { contentType: "video/mp4" } });
+
+  const [downloadUrl] = await file.getSignedUrl({ action: 'read', expires: '03-09-2491' });
+
+  // Update profile and job
+  const profileRef = adminDb.collection(`users/${user.uid}/profiles`).doc(profileId);
+  await profileRef.update({
+    video: {
+      storagePath,
+      downloadUrl,
+      createdAt: FieldValue.serverTimestamp(),
+    },
+  });
+
+  await updateJob({ userId: user.uid, jobId, status: "succeeded", metadata: { resumed: true } });
+}
+
+export async function resumeVideoWithUrl(input: { jobId: string, profileId: string, idToken: string, videoUrl: string }) {
+  const { jobId, profileId, idToken, videoUrl } = input;
+
+  if (!videoUrl || typeof videoUrl !== 'string') {
+    throw new Error('A valid videoUrl is required.');
+  }
+
+  let user;
+  try {
+    user = await getAuthenticatedUser(idToken);
+  } catch (error) {
+    console.error("Firebase Auth Error in resumeVideoWithUrl:", error);
+    throw new Error("Server-side authentication failed.");
+  }
+
+  if (!user) {
+    throw new Error("Authentication failed.");
+  }
+
+  await updateJob({ userId: user.uid, jobId, status: "running", metadata: { resumeViaUrl: true } });
+
+  // Try to download the provided URL and upload to Storage; if upload fails, fall back to storing the direct URL
+  let downloadUrl = '';
+  let storagePath = `videos/${user.uid}/${profileId}/${jobId}.mp4`;
+
+  try {
+    const videoResponse = await fetch(videoUrl, { headers: { accept: "application/json" } });
+    if (!videoResponse.ok) {
+      throw new Error(`Failed to download provided video URL: ${videoResponse.status}`);
+    }
+    const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
+
+    const file = adminStorage.bucket().file(storagePath);
+    await file.save(videoBuffer, { metadata: { contentType: "video/mp4" } });
+    const [signedUrl] = await file.getSignedUrl({ action: 'read', expires: '03-09-2491' });
+    downloadUrl = signedUrl;
+  } catch (e: any) {
+    console.warn('Storage upload failed or download error. Falling back to direct URL on profile:', e?.message || e);
+    // Use sanitized path for consistency even if we don't upload
+    const safeProfileId = String(profileId).replace(/[^a-zA-Z0-9_-]/g, '_');
+    storagePath = `videos/${user.uid}/${safeProfileId}/${jobId}.mp4`;
+    downloadUrl = videoUrl;
+  }
+
+  const profileRef = adminDb.collection(`users/${user.uid}/profiles`).doc(profileId);
+  await profileRef.update({
+    video: {
+      storagePath,
+      downloadUrl,
+      createdAt: FieldValue.serverTimestamp(),
+    },
+  });
+
+  await updateJob({ userId: user.uid, jobId, status: "succeeded", metadata: { resumed: true, via: 'url', storagePath, downloadUrl } });
 }
