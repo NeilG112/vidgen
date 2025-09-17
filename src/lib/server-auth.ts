@@ -17,8 +17,8 @@ export async function getAuthenticatedUser(idToken: string): Promise<FirebaseUse
   }
 
   try {
-    const decodedToken = await getAuth().verifyIdToken(idToken);
-    return decodedToken as FirebaseUser;
+  const decodedToken = await getAuth().verifyIdToken(idToken);
+  return decodedToken as unknown as FirebaseUser;
   } catch (error) {
     throw new Error("Invalid or expired authentication token.");
   }

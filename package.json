@@ -9,8 +9,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit",
-    "resume:job": "node scripts/resumeVideoByJobId.js"
+  "typecheck": "tsc --noEmit",
+  "resume:job": "node scripts/resumeVideoByJobId.js",
+  "reset:credits": "node scripts/resetCredits.js"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.14.1",

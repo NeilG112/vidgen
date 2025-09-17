@@ -19,6 +19,8 @@ import { generatePersonalizedIntroScript } from "@/ai/flows/generate-personalize
 import { improveIntroScript } from "@/ai/flows/improve-intro-script";
 import { generateVideo } from "@/lib/actions/videoActions";
 import { useAuth } from "@/lib/auth";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase/client";
 import { Loader2, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -35,6 +37,17 @@ export default function ProfileDetailsDialog({ profile, isOpen, onOpenChange }: 
   const [isImproving, setIsImproving] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
+  const [credits, setCredits] = useState<{ video?: number } | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    const creditsRef = doc(db, 'users', user.uid, 'meta', 'credits');
+    const unsub = onSnapshot(creditsRef, (snap) => {
+      if (snap.exists()) setCredits(snap.data() as any);
+      else setCredits(null);
+    });
+    return () => unsub();
+  }, [user]);
 
   useEffect(() => {
     if (profile && isOpen) {
@@ -88,6 +101,16 @@ export default function ProfileDetailsDialog({ profile, isOpen, onOpenChange }: 
     if (!profile || !user) return;
     setIsGenerating(true);
     try {
+      // estimate minutes required from script (130 wpm) before calling server
+      const words = script.split(/\s+/).filter(Boolean).length;
+      const minutesEstimate = Math.max(1, Math.ceil(words / 130));
+      const available = credits?.video ?? 0;
+      if (available < minutesEstimate) {
+        toast({ variant: 'destructive', title: 'Insufficient credits', description: `This video will take ~${minutesEstimate} minute(s) and you have ${available} video credits.` });
+        setIsGenerating(false);
+        return;
+      }
+
       const idToken = await user.getIdToken();
       await generateVideo({ profileId: profile.id, script, idToken });
       toast({
@@ -140,7 +163,7 @@ export default function ProfileDetailsDialog({ profile, isOpen, onOpenChange }: 
             <div>
               <h3 className="font-semibold mb-2">Experience</h3>
               <ul className="space-y-4">
-                {profile.experience.map((exp, index) => (
+                {(profile.experience || []).map((exp: any, index: number) => (
                   <li key={index} className="text-sm">
                     <p className="font-medium">{exp.title}</p>
                     <p className="text-muted-foreground">{exp.company}</p>
@@ -205,6 +228,9 @@ export default function ProfileDetailsDialog({ profile, isOpen, onOpenChange }: 
             </Button>
           </div>
           <DialogFooter className="sticky bottom-0 bg-background/95 backdrop-blur-sm pt-4">
+            <div className="mr-auto text-sm text-muted-foreground flex items-center gap-4">
+              <div>Video credits: <strong>{credits?.video ?? 0}</strong></div>
+            </div>
             <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button onClick={handleGenerateVideo} disabled={isGenerating || !script} className="bg-accent hover:bg-accent/90">
               {isGenerating ? <Loader2 className="animate-spin mr-2" /> : null}

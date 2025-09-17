@@ -5,7 +5,6 @@ import { getAuthenticatedUser } from "@/lib/server-auth";
 import { adminDb, adminStorage } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { createJob, updateJob } from "./jobActions";
-import { adminDb } from "@/lib/firebase/admin";
 
 const generateVideoSchema = z.object({
   profileId: z.string(),
@@ -31,27 +30,6 @@ export async function generateVideo(input: { profileId: string, script: string, 
 
   if (!user) {
     throw new Error("Authentication failed.");
-  }
-
-  // Enforce quota: 1 minute of video = 1 video credit.
-  // Estimate minutes from text length (~150 words/min, assume 5 chars/word)
-  const estimatedMinutes = Math.max(1, Math.ceil((script.length / 5 / 150)));
-  const userRef = adminDb.collection('users').doc(user.uid);
-  const userSnap = await userRef.get();
-  const now = new Date();
-  const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const quota = userSnap.get('quota') || null;
-  if (!quota) {
-    throw new Error("No quota configured. Contact administrator.");
-  }
-  if (!quota.periodStart || quota.periodStart.toDate?.() < periodStart) {
-    await userRef.set({ quota: { ...quota, usedScrapeCredits: 0, usedVideoMinutes: 0, periodStart } }, { merge: true });
-    quota.usedScrapeCredits = 0;
-    quota.usedVideoMinutes = 0;
-    quota.periodStart = periodStart;
-  }
-  if ((quota.usedVideoMinutes || 0) + estimatedMinutes > (quota.monthlyVideoMinutes || 0)) {
-    throw new Error(`Video quota exceeded. Estimated ${estimatedMinutes} min, available ${(quota.monthlyVideoMinutes || 0) - (quota.usedVideoMinutes || 0)}.`);
   }
 
   const jobId = await createJob({
@@ -130,16 +108,23 @@ export async function generateVideo(input: { profileId: string, script: string, 
     const videoId = generateData.data.video_id;
     console.log(`HeyGen video generation started with ID: ${videoId}`);
 
-    // Persist videoId on the job so we can resume without regenerating
-    await updateJob({ userId: user.uid, jobId, status: "running", metadata: { videoId } });
+  // Persist videoId on the job so we can resume without regenerating
+  await updateJob({ userId: user.uid, jobId, status: "running", metadata: { videoId } });
 
-    // 2. Poll for video completion (matching n8n workflow)
-    let videoStatus = '';
-    const maxRetries = 60; // 10 minutes timeout (60 * 10s)
-    let retries = 0;
-    let videoUrl = '';
+  // Prepare credits ref (we'll decrement once we know duration).
+  // Video credits are tracked in seconds (1 credit = 1 second).
+  const creditsRef = adminDb.collection('users').doc(user.uid).collection('meta').doc('credits');
+  const creditsSnap = await creditsRef.get();
+  let availableVideoSeconds = creditsSnap.exists ? (creditsSnap.data()?.video || 0) : 0;
 
-    console.log("Starting to poll for video completion...");
+  // 2. Poll for video completion (matching n8n workflow)
+  let videoStatus = '';
+  const maxRetries = 60; // 10 minutes timeout (60 * 10s)
+  let retries = 0;
+  let videoUrl = '';
+  let lastStatusData: any = null;
+
+  console.log("Starting to poll for video completion...");
     while (videoStatus !== 'completed' && retries < maxRetries) {
       retries++;
       await delay(10000); // Wait 10 seconds between polls
@@ -158,6 +143,7 @@ export async function generateVideo(input: { profileId: string, script: string, 
 
       const statusData = await statusResponse.json();
       console.log(`Polling attempt ${retries}: Status = ${statusData.data?.status}`);
+      lastStatusData = statusData;
       
       videoStatus = statusData.data?.status;
       if (videoStatus === 'completed') {
@@ -178,9 +164,47 @@ export async function generateVideo(input: { profileId: string, script: string, 
       }
     }
 
-    if (!videoUrl) {
-      throw new Error("HeyGen video generation timed out after 10 minutes.");
-    }
+      if (!videoUrl) {
+        throw new Error("HeyGen video generation timed out after 10 minutes.");
+      }
+
+      // Determine duration in seconds: prefer HeyGen status data, otherwise estimate from script.
+      const sd = lastStatusData?.data || {};
+      const secondsFromHeygen = sd.duration_seconds ?? sd.duration ?? sd.length_seconds ?? sd.video_duration_seconds ?? undefined;
+      let secondsRequired = 0;
+      if (secondsFromHeygen) {
+        secondsRequired = Math.max(1, Math.ceil(Number(secondsFromHeygen)));
+      } else {
+        // Estimate assuming 130 words per minute => words / (130/60) = approx seconds
+        const words = script.split(/\s+/).filter(Boolean).length;
+        secondsRequired = Math.max(1, Math.ceil((words / 130) * 60));
+      }
+
+      // Deduct credits atomically using a transaction and write a usage log (amount in seconds)
+      const creditsDocRef = adminDb.collection('users').doc(user.uid).collection('meta').doc('credits');
+      const usageCollection = adminDb.collection('users').doc(user.uid).collection('usage');
+      try {
+        await adminDb.runTransaction(async (tx) => {
+          const snap = await tx.get(creditsDocRef);
+          const available = snap.exists ? (snap.data()?.video || 0) : 0;
+          if (available < secondsRequired) {
+            throw new Error(`Insufficient video credits (seconds): required ${secondsRequired}, available ${available}`);
+          }
+          tx.set(creditsDocRef, { video: available - secondsRequired }, { merge: true });
+          tx.set(usageCollection.doc(), {
+            type: 'video',
+            amount: secondsRequired,
+            createdAt: FieldValue.serverTimestamp(),
+            jobId,
+            profileId,
+          });
+        });
+        // record in job metadata
+        await updateJob({ userId: user.uid, jobId, status: 'running', metadata: { videoSecondsUsed: secondsRequired } });
+      } catch (e: any) {
+        await updateJob({ userId: user.uid, jobId, status: 'failed', metadata: { error: String(e?.message || e) } });
+        throw e;
+      }
 
     // 3. Download video and upload to Firebase Storage (matching n8n workflow)
     console.log("Downloading video from HeyGen...");
@@ -198,45 +222,23 @@ export async function generateVideo(input: { profileId: string, script: string, 
     const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
     console.log(`Downloaded video buffer size: ${videoBuffer.length} bytes`);
     
-    let storagePath = `videos/${user.uid}/${profileId}/${jobId}.mp4`;
-    let downloadUrl = '';
-    try {
-      const file = adminStorage.bucket().file(storagePath);
-      await file.save(videoBuffer, {
-        metadata: { contentType: "video/mp4" },
-      });
-      const signed = await file.getSignedUrl({
-          action: 'read',
-          expires: '03-09-2491'
-      });
-      downloadUrl = signed[0];
-    } catch (e: any) {
-      console.warn('Storage upload failed. Falling back to direct HeyGen URL:', e?.message || e);
-      // Sanitize profileId for consistency in stored storagePath
-      const safeProfileId = String(profileId).replace(/[^a-zA-Z0-9_-]/g, '_');
-      storagePath = `videos/${user.uid}/${safeProfileId}/${jobId}.mp4`;
-      downloadUrl = videoUrl; // use HeyGen URL directly as fallback
-    }
+    // We're not reliably using storage for public delivery in this environment. Use HeyGen URL directly.
+    const storagePath = `videos/${user.uid}/${profileId}/${jobId}.mp4`;
+    const downloadUrl = videoUrl;
 
     // 4. Update Firestore
     const profileRef = adminDb.collection(`users/${user.uid}/profiles`).doc(profileId);
+    // Save video metadata on the profile and record the seconds used
     await profileRef.update({
       video: {
         storagePath,
         downloadUrl,
         createdAt: FieldValue.serverTimestamp(),
+        secondsUsed: secondsRequired,
       },
     });
 
     await updateJob({ userId: user.uid, jobId, status: "succeeded" });
-
-    // Consume estimated minutes
-    await userRef.set({
-      quota: {
-        ...quota,
-        usedVideoMinutes: (quota.usedVideoMinutes || 0) + estimatedMinutes,
-      }
-    }, { merge: true });
 
   } catch (error: any) {
     await updateJob({

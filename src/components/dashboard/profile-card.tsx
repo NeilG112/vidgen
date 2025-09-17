@@ -2,6 +2,10 @@
 
 import Image from "next/image";
 import { type Profile } from "@/lib/types";
+import { useAuth } from "@/lib/auth";
+import { useEffect, useState } from "react";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase/client";
 import {
   Card,
   CardContent,
@@ -17,6 +21,24 @@ interface ProfileCardProps {
 }
 
 export default function ProfileCard({ profile, onOpenDialog }: ProfileCardProps) {
+  const { user } = useAuth();
+  const [credits, setCredits] = useState<{ scraping?: number, video?: number, resetAt?: any } | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    const creditsRef = doc(db, 'users', user.uid, 'meta', 'credits');
+    const unsub = onSnapshot(creditsRef, (snap) => {
+      if (snap.exists()) setCredits(snap.data() as any);
+      else setCredits(null);
+    });
+    return () => unsub();
+  }, [user]);
+
+  const nextReset = () => {
+    const now = new Date();
+    const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    return next.toLocaleDateString();
+  };
   return (
     <Card>
       <CardHeader>
@@ -33,11 +55,20 @@ export default function ProfileCard({ profile, onOpenDialog }: ProfileCardProps)
       </CardHeader>
       <CardContent>
         <p className="text-sm text-muted-foreground line-clamp-2">{profile.headline}</p>
+        {profile.video && (
+          <div className="mt-2 text-xs text-muted-foreground">Video cost: ~1 credit/min</div>
+        )}
       </CardContent>
       <CardFooter>
-        <Button onClick={() => onOpenDialog(profile)} className="w-full">
-          View Profile
-        </Button>
+        <div className="w-full">
+          {profile.video?.secondsUsed && (
+            <div className="mb-2 text-sm text-muted-foreground">Video used: <strong>{profile.video.secondsUsed}s</strong></div>
+          )}
+          <div className="mb-2 text-xs text-muted-foreground">Next reset: {nextReset()}</div>
+          <Button onClick={() => onOpenDialog(profile)} className="w-full">
+            View Profile
+          </Button>
+        </div>
       </CardFooter>
     </Card>
   );

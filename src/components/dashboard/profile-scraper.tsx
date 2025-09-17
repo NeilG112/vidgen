@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -25,6 +25,8 @@ import { Loader2, PlusCircle, Trash2, UploadCloud } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { scrapeProfiles } from "@/lib/actions/profileActions";
 import { useAuth } from "@/lib/auth";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase/client";
 
 const urlSchema = z.string().url().refine(
   (url) => url.startsWith("https://www.linkedin.com/in/"),
@@ -38,7 +40,18 @@ const formSchema = z.object({
 export default function ProfileScraper() {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [credits, setCredits] = useState<{ scraping?: number } | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (!user) return;
+    const creditsRef = doc(db, 'users', user.uid, 'meta', 'credits');
+    const unsub = onSnapshot(creditsRef, (snap) => {
+      if (snap.exists()) setCredits(snap.data() as any);
+      else setCredits(null);
+    });
+    return () => unsub();
+  }, [user]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -66,6 +79,15 @@ export default function ProfileScraper() {
     try {
       const idToken = await user.getIdToken();
       const urls = values.profileUrls.map(item => item.value);
+
+      // client-side check for scraping credits
+      const available = credits?.scraping ?? 0;
+      if (available < urls.length) {
+        toast({ variant: "destructive", title: "Insufficient credits", description: `You need ${urls.length} scraping credits but have ${available}.` });
+        setIsLoading(false);
+        return;
+      }
+
       await scrapeProfiles({ profileUrls: urls, idToken });
       toast({
         title: "Scraping Started",
@@ -151,7 +173,7 @@ export default function ProfileScraper() {
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Add URL
                   </Button>
-                  <Button type="submit" disabled={isLoading} className="bg-accent hover:bg-accent/90">
+                  <Button type="submit" disabled={isLoading || ((credits?.scraping ?? 0) < fields.length)} className="bg-accent hover:bg-accent/90">
                     {isLoading ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : null}

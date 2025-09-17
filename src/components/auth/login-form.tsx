@@ -42,8 +42,14 @@ export function LoginForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
-      await signIn(values.email, values.password);
-      router.push("/dashboard");
+      const result = await signIn(values.email, values.password);
+      const signedEmail = result?.user?.email;
+      const ADMIN_EMAIL = 'neilganguly2007@gmail.com';
+      if (signedEmail === ADMIN_EMAIL) {
+        router.push('/admin');
+      } else {
+        router.push('/dashboard');
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",

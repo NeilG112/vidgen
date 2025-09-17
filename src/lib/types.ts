@@ -12,10 +12,13 @@ export type Profile = {
   profilePic: string;
   currentCompany?: string;
   scrapedAt: Date;
+  about?: string;
+  experience?: Array<any>;
   video: {
     storagePath: string;
     downloadUrl: string;
     createdAt: Date;
+    secondsUsed?: number;
   } | null;
 };
 
@@ -30,12 +33,4 @@ export type Job = {
     createdAt: Date;
     updatedAt: Date;
     metadata: Record<string, any>;
-};
-
-export type UserQuota = {
-  monthlyScrapeCredits: number;
-  monthlyVideoMinutes: number;
-  usedScrapeCredits: number;
-  usedVideoMinutes: number;
-  periodStart: Date; // start of current month period
 };

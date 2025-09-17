@@ -41,27 +41,6 @@ export async function scrapeProfiles(input: { profileUrls: string[], idToken: st
   if (!user) {
     throw new Error("Authentication failed.");
   }
-
-  // Enforce quota: 1 scraped URL = 1 scrape credit
-  const userRef = adminDb.collection('users').doc(user.uid);
-  const userSnap = await userRef.get();
-  const now = new Date();
-  const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const quota = userSnap.get('quota') || null;
-  if (!quota) {
-    throw new Error("No quota configured. Contact administrator.");
-  }
-  // Reset monthly counters if period changed
-  if (!quota.periodStart || quota.periodStart.toDate?.() < periodStart) {
-    await userRef.set({ quota: { ...quota, usedScrapeCredits: 0, usedVideoMinutes: 0, periodStart } }, { merge: true });
-    quota.usedScrapeCredits = 0;
-    quota.usedVideoMinutes = 0;
-    quota.periodStart = periodStart;
-  }
-  const requested = profileUrls.length;
-  if ((quota.usedScrapeCredits || 0) + requested > (quota.monthlyScrapeCredits || 0)) {
-    throw new Error(`Scrape quota exceeded. Requested ${requested}, available ${(quota.monthlyScrapeCredits || 0) - (quota.usedScrapeCredits || 0)}.`);
-  }
   
   const jobId = await createJob({
     userId: user.uid,
@@ -70,6 +49,26 @@ export async function scrapeProfiles(input: { profileUrls: string[], idToken: st
     metadata: { urls: profileUrls }
   });
   console.log(`Created job ${jobId} for user ${user.uid}`);
+
+  // Atomically check and decrement scraping credits and create a usage log
+  const creditsDocRef = adminDb.collection('users').doc(user.uid).collection('meta').doc('credits');
+  const usageCollection = adminDb.collection('users').doc(user.uid).collection('usage');
+  const needed = profileUrls.length;
+  await adminDb.runTransaction(async (tx) => {
+    const creditsSnap = await tx.get(creditsDocRef);
+    const available = creditsSnap.exists ? (creditsSnap.data()?.scraping || 0) : 0;
+    if (available < needed) {
+      throw new Error(`Insufficient scraping credits: required ${needed}, available ${available}`);
+    }
+    tx.set(creditsDocRef, { scraping: available - needed }, { merge: true });
+    tx.set(usageCollection.doc(), {
+      type: 'scraping',
+      amount: needed,
+      createdAt: FieldValue.serverTimestamp(),
+      jobId,
+      urls: profileUrls,
+    });
+  });
 
   try {
     await updateJob({ userId: user.uid, jobId, status: "running" });
@@ -163,7 +162,7 @@ export async function scrapeProfiles(input: { profileUrls: string[], idToken: st
         const slug = profileUrl.split('/in/')[1]?.split('/')[0];
         if (slug) {
             const nameSlug = slug.replace(/-[a-z0-9]+$/, '');
-            const nameParts = nameSlug.split('-').map(part => part.charAt(0).toUpperCase() + part.slice(1));
+            const nameParts = nameSlug.split('-').map((part: string) => part.charAt(0).toUpperCase() + part.slice(1));
             fullName = nameParts.join(' ');
             firstName = nameParts[0];
             lastName = nameParts.slice(1).join(' ');
@@ -225,14 +224,6 @@ export async function scrapeProfiles(input: { profileUrls: string[], idToken: st
     
     await batch.commit();
     console.log("Successfully committed batch to Firestore.");
-
-    // Consume credits
-    await userRef.set({
-      quota: {
-        ...quota,
-        usedScrapeCredits: (quota.usedScrapeCredits || 0) + scrapedProfiles.length,
-      }
-    }, { merge: true });
 
     await updateJob({ userId: user.uid, jobId, status: "succeeded" });
 
