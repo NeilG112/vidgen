@@ -5,6 +5,7 @@ import { getAuthenticatedUser } from "@/lib/server-auth";
 import { adminDb, adminStorage } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { createJob, updateJob } from "./jobActions";
+import { adminDb } from "@/lib/firebase/admin";
 
 const generateVideoSchema = z.object({
   profileId: z.string(),
@@ -30,6 +31,27 @@ export async function generateVideo(input: { profileId: string, script: string, 
 
   if (!user) {
     throw new Error("Authentication failed.");
+  }
+
+  // Enforce quota: 1 minute of video = 1 video credit.
+  // Estimate minutes from text length (~150 words/min, assume 5 chars/word)
+  const estimatedMinutes = Math.max(1, Math.ceil((script.length / 5 / 150)));
+  const userRef = adminDb.collection('users').doc(user.uid);
+  const userSnap = await userRef.get();
+  const now = new Date();
+  const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const quota = userSnap.get('quota') || null;
+  if (!quota) {
+    throw new Error("No quota configured. Contact administrator.");
+  }
+  if (!quota.periodStart || quota.periodStart.toDate?.() < periodStart) {
+    await userRef.set({ quota: { ...quota, usedScrapeCredits: 0, usedVideoMinutes: 0, periodStart } }, { merge: true });
+    quota.usedScrapeCredits = 0;
+    quota.usedVideoMinutes = 0;
+    quota.periodStart = periodStart;
+  }
+  if ((quota.usedVideoMinutes || 0) + estimatedMinutes > (quota.monthlyVideoMinutes || 0)) {
+    throw new Error(`Video quota exceeded. Estimated ${estimatedMinutes} min, available ${(quota.monthlyVideoMinutes || 0) - (quota.usedVideoMinutes || 0)}.`);
   }
 
   const jobId = await createJob({
@@ -207,6 +229,14 @@ export async function generateVideo(input: { profileId: string, script: string, 
     });
 
     await updateJob({ userId: user.uid, jobId, status: "succeeded" });
+
+    // Consume estimated minutes
+    await userRef.set({
+      quota: {
+        ...quota,
+        usedVideoMinutes: (quota.usedVideoMinutes || 0) + estimatedMinutes,
+      }
+    }, { merge: true });
 
   } catch (error: any) {
     await updateJob({

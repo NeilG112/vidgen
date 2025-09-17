@@ -31,3 +31,11 @@ export type Job = {
     updatedAt: Date;
     metadata: Record<string, any>;
 };
+
+export type UserQuota = {
+  monthlyScrapeCredits: number;
+  monthlyVideoMinutes: number;
+  usedScrapeCredits: number;
+  usedVideoMinutes: number;
+  periodStart: Date; // start of current month period
+};

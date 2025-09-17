@@ -41,6 +41,27 @@ export async function scrapeProfiles(input: { profileUrls: string[], idToken: st
   if (!user) {
     throw new Error("Authentication failed.");
   }
+
+  // Enforce quota: 1 scraped URL = 1 scrape credit
+  const userRef = adminDb.collection('users').doc(user.uid);
+  const userSnap = await userRef.get();
+  const now = new Date();
+  const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const quota = userSnap.get('quota') || null;
+  if (!quota) {
+    throw new Error("No quota configured. Contact administrator.");
+  }
+  // Reset monthly counters if period changed
+  if (!quota.periodStart || quota.periodStart.toDate?.() < periodStart) {
+    await userRef.set({ quota: { ...quota, usedScrapeCredits: 0, usedVideoMinutes: 0, periodStart } }, { merge: true });
+    quota.usedScrapeCredits = 0;
+    quota.usedVideoMinutes = 0;
+    quota.periodStart = periodStart;
+  }
+  const requested = profileUrls.length;
+  if ((quota.usedScrapeCredits || 0) + requested > (quota.monthlyScrapeCredits || 0)) {
+    throw new Error(`Scrape quota exceeded. Requested ${requested}, available ${(quota.monthlyScrapeCredits || 0) - (quota.usedScrapeCredits || 0)}.`);
+  }
   
   const jobId = await createJob({
     userId: user.uid,
@@ -204,6 +225,14 @@ export async function scrapeProfiles(input: { profileUrls: string[], idToken: st
     
     await batch.commit();
     console.log("Successfully committed batch to Firestore.");
+
+    // Consume credits
+    await userRef.set({
+      quota: {
+        ...quota,
+        usedScrapeCredits: (quota.usedScrapeCredits || 0) + scrapedProfiles.length,
+      }
+    }, { merge: true });
 
     await updateJob({ userId: user.uid, jobId, status: "succeeded" });
 
