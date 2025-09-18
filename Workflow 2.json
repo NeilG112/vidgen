@@ -691,12 +691,12 @@
             "createdAt": "2025-09-12T11:36:08.494Z",
             "eventType": "ACTOR.RUN.CREATED",
             "eventData": {
-              "actorId": "2SyF0bVxmgGr8IVCZ",
+              "actorId": "your-apify-actor-id",
               "actorRunId": "cCO3uJE90lKYS26ow"
             },
             "resource": {
               "id": "cCO3uJE90lKYS26ow",
-              "actId": "2SyF0bVxmgGr8IVCZ",
+              "actId": "your-apify-actor-id",
               "userId": "CcMNPn4p5vwYh22kq",
               "startedAt": "2025-09-12T11:36:02.384Z",
               "finishedAt": "2025-09-12T11:36:07.380Z",
@@ -756,7 +756,7 @@
               "containerUrl": "https://c6g6tzfjzihp.runs.apify.net",
               "links": {
                 "publicRunUrl": "https://console.apify.com/view/runs/cCO3uJE90lKYS26ow",
-                "consoleRunUrl": "https://console.apify.com/actors/2SyF0bVxmgGr8IVCZ/runs/cCO3uJE90lKYS26ow",
+                "consoleRunUrl": "https://console.apify.com/actors/your-apify-actor-id/runs/cCO3uJE90lKYS26ow",
                 "apiRunUrl": "https://api.apify.com/v2/actor-runs/cCO3uJE90lKYS26ow"
               }
             }
