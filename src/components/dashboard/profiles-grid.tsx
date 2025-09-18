@@ -5,7 +5,7 @@ import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { Terminal } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
-import { db } from "@/lib/firebase/client";
+import { getClientDb } from "@/lib/firebase/client";
 import { type Profile } from "@/lib/types";
 
 import {
@@ -40,8 +40,10 @@ export default function ProfilesGrid() {
 
     setIsLoading(true);
     setError(null);
+    const clientDb = getClientDb();
+    if (!clientDb) return;
     const q = query(
-      collection(db, `users/${user.uid}/profiles`),
+      collection(clientDb, `users/${user.uid}/profiles`),
       orderBy("scrapedAt", "desc")
     );
 

@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { type Profile } from "@/lib/types";
 import { generatePersonalizedIntroScript } from "@/ai/flows/generate-personalized-intro-script";
 import { improveIntroScript } from "@/ai/flows/improve-intro-script";
-import { generateVideo } from "@/lib/actions/videoActions";
+// generateVideo is now a server-side API route; client will call /api/video/generate
 import { useAuth } from "@/lib/auth";
 import { Loader2, Sparkles } from "lucide-react";
 
@@ -86,7 +86,13 @@ export default function GenerateVideoDialog({ profile, isOpen, onOpenChange }: G
     setIsGenerating(true);
     try {
       const idToken = await user.getIdToken();
-      await generateVideo({ profileId: profile.id, script, idToken });
+      const res = await fetch('/api/video/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileId: profile.id, script, idToken }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Video generation failed');
       toast({
         title: "Video Generation Started",
         description: "Your video is being created. You can track its progress on the Jobs page.",

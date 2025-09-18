@@ -1,6 +1,6 @@
 "use server";
 
-import { adminDb } from "@/lib/firebase/admin";
+import { getAdminDb } from "@/lib/firebase/admin";
 import { Job, JobStatus } from "@/lib/types";
 import { FieldValue } from "firebase-admin/firestore";
 
@@ -12,6 +12,7 @@ type CreateJobPayload = {
 };
 
 export async function createJob(payload: CreateJobPayload): Promise<string> {
+  const adminDb = getAdminDb();
   const jobRef = adminDb.collection(`users/${payload.userId}/jobs`).doc();
   
   const newJob: Omit<Job, 'id'> = {
@@ -34,7 +35,8 @@ type UpdateJobPayload = {
 };
 
 export async function updateJob(payload: UpdateJobPayload) {
-    const jobRef = adminDb.collection(`users/${payload.userId}/jobs`).doc(payload.jobId);
+  const adminDb = getAdminDb();
+  const jobRef = adminDb.collection(`users/${payload.userId}/jobs`).doc(payload.jobId);
 
     const updateData: any = {
         status: payload.status,

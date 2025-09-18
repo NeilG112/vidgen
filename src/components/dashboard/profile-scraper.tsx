@@ -23,10 +23,10 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, PlusCircle, Trash2, UploadCloud } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { scrapeProfiles } from "@/lib/actions/profileActions";
+// server action moved to API route to avoid leaking secrets into client bundles
 import { useAuth } from "@/lib/auth";
 import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
+import { getClientDb } from "@/lib/firebase/client";
 
 const urlSchema = z.string().url().refine(
   (url) => url.startsWith("https://www.linkedin.com/in/"),
@@ -45,7 +45,9 @@ export default function ProfileScraper() {
 
   useEffect(() => {
     if (!user) return;
-    const creditsRef = doc(db, 'users', user.uid, 'meta', 'credits');
+    const clientDb = getClientDb();
+    if (!clientDb) return;
+    const creditsRef = doc(clientDb, 'users', user.uid, 'meta', 'credits');
     const unsub = onSnapshot(creditsRef, (snap) => {
       if (snap.exists()) setCredits(snap.data() as any);
       else setCredits(null);
@@ -77,8 +79,8 @@ export default function ProfileScraper() {
 
     setIsLoading(true);
     try {
-      const idToken = await user.getIdToken();
-      const urls = values.profileUrls.map(item => item.value);
+  const idToken = await user.getIdToken();
+  const urls = values.profileUrls.map(item => item.value);
 
       // client-side check for scraping credits
       const available = credits?.scraping ?? 0;
@@ -88,7 +90,14 @@ export default function ProfileScraper() {
         return;
       }
 
-      await scrapeProfiles({ profileUrls: urls, idToken });
+      // Call server API route which will use server-side secrets safely
+      const res = await fetch('/api/scrapeProfiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileUrls: urls, idToken }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to start scraping');
       toast({
         title: "Scraping Started",
         description: "Your profiles are being scraped. You can track progress on the Jobs page.",

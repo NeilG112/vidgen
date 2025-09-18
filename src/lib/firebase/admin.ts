@@ -1,26 +1,56 @@
 import { initializeApp, getApps, cert, App } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-import { getStorage } from "firebase-admin/storage";
+import { getFirestore, Firestore } from "firebase-admin/firestore";
+import { getStorage, Storage } from "firebase-admin/storage";
 
-const adminConfig = {
-  credential: cert({
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    // Replace newlines with actual newlines
-    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-  }),
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-};
+let _adminApp: App | undefined;
+let _adminDb: Firestore | undefined;
+let _adminStorage: Storage | undefined;
 
-function getAdminApp(): App {
-  if (getApps().length > 0) {
-    return getApps()[0];
-  }
-  return initializeApp(adminConfig);
+function hasAdminEnv() {
+  return !!(
+    process.env.FIREBASE_CLIENT_EMAIL &&
+    process.env.FIREBASE_PRIVATE_KEY &&
+    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+  );
 }
 
-const adminApp = getAdminApp();
-const adminDb = getFirestore(adminApp);
-const adminStorage = getStorage(adminApp);
+export function getAdminApp(): App {
+  if (_adminApp) return _adminApp;
+  if (!hasAdminEnv()) {
+    throw new Error('Firebase admin env vars not set (FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, NEXT_PUBLIC_FIREBASE_PROJECT_ID)');
+  }
+  const adminConfig = {
+    credential: cert({
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID as string,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL as string,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n') as string,
+    }),
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  };
+  if (getApps().length > 0) {
+    _adminApp = getApps()[0];
+  } else {
+    _adminApp = initializeApp(adminConfig as any);
+  }
+  return _adminApp;
+}
 
-export { adminApp, adminDb, adminStorage, adminConfig };
+export function getAdminDb(): Firestore {
+  if (_adminDb) return _adminDb;
+  const app = getAdminApp();
+  _adminDb = getFirestore(app);
+  return _adminDb;
+}
+
+export function getAdminStorage(): Storage {
+  if (_adminStorage) return _adminStorage;
+  const app = getAdminApp();
+  _adminStorage = getStorage(app);
+  return _adminStorage;
+}
+
+export default {
+  getAdminApp,
+  getAdminDb,
+  getAdminStorage,
+};

@@ -8,7 +8,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Clapperboard, Download, Play } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
-import { db } from "@/lib/firebase/client";
+import { getClientDb } from "@/lib/firebase/client";
 import { type Profile } from "@/lib/types";
 
 import {
@@ -46,8 +46,10 @@ export default function ProfilesTable() {
     }
 
     setIsLoading(true);
+    const clientDb = getClientDb();
+    if (!clientDb) return;
     const q = query(
-      collection(db, `users/${user.uid}/profiles`),
+      collection(clientDb, `users/${user.uid}/profiles`),
       orderBy("scrapedAt", "desc")
     );
 

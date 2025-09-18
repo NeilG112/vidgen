@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/server-auth";
-import { adminDb, adminStorage } from "@/lib/firebase/admin";
+import { getAdminDb, getAdminStorage } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { createJob, updateJob } from "./jobActions";
 
@@ -111,6 +111,7 @@ export async function generateVideo(input: { profileId: string, script: string, 
   // Persist videoId on the job so we can resume without regenerating
   await updateJob({ userId: user.uid, jobId, status: "running", metadata: { videoId } });
 
+  const adminDb = getAdminDb();
   // Prepare credits ref (we'll decrement once we know duration).
   // Video credits are tracked in seconds (1 credit = 1 second).
   const creditsRef = adminDb.collection('users').doc(user.uid).collection('meta').doc('credits');
@@ -271,6 +272,8 @@ export async function resumeVideo(input: { jobId: string, profileId: string, idT
     throw new Error("HeyGen configuration is missing on the server.");
   }
 
+  const adminDb = getAdminDb();
+
   // Fetch job to retrieve stored videoId
   const jobRef = adminDb.collection(`users/${user.uid}/jobs`).doc(jobId);
   const jobSnap = await jobRef.get();
@@ -341,6 +344,7 @@ export async function resumeVideo(input: { jobId: string, profileId: string, idT
   const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
 
   const storagePath = `videos/${user.uid}/${profileId}/${jobId}.mp4`;
+  const adminStorage = getAdminStorage();
   const file = adminStorage.bucket().file(storagePath);
   await file.save(videoBuffer, { metadata: { contentType: "video/mp4" } });
 

@@ -17,10 +17,10 @@ import { useToast } from "@/hooks/use-toast";
 import { type Profile } from "@/lib/types";
 import { generatePersonalizedIntroScript } from "@/ai/flows/generate-personalized-intro-script";
 import { improveIntroScript } from "@/ai/flows/improve-intro-script";
-import { generateVideo } from "@/lib/actions/videoActions";
+// generateVideo action is server-side; call /api/video/generate instead
 import { useAuth } from "@/lib/auth";
 import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
+import { getClientDb } from "@/lib/firebase/client";
 import { Loader2, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -41,7 +41,9 @@ export default function ProfileDetailsDialog({ profile, isOpen, onOpenChange }: 
 
   useEffect(() => {
     if (!user) return;
-    const creditsRef = doc(db, 'users', user.uid, 'meta', 'credits');
+    const clientDb = getClientDb();
+    if (!clientDb) return;
+    const creditsRef = doc(clientDb, 'users', user.uid, 'meta', 'credits');
     const unsub = onSnapshot(creditsRef, (snap) => {
       if (snap.exists()) setCredits(snap.data() as any);
       else setCredits(null);
@@ -112,7 +114,13 @@ export default function ProfileDetailsDialog({ profile, isOpen, onOpenChange }: 
       }
 
       const idToken = await user.getIdToken();
-      await generateVideo({ profileId: profile.id, script, idToken });
+      const res = await fetch('/api/video/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileId: profile.id, script, idToken }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Video generation failed');
       toast({
         title: "Video Generation Started",
         description: "Your video is being created. You can track its progress on the Jobs page.",

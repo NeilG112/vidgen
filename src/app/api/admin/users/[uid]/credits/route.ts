@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase/admin';
+import { getAdminDb } from '@/lib/firebase/admin';
 import { getAuthenticatedUser } from '@/lib/server-auth';
 
 const ADMIN_EMAIL = 'neilganguly2007@gmail.com';
@@ -15,8 +15,9 @@ export async function GET(req: Request, { params }: { params: any }) {
     const resolvedParams = await params;
     const uid = resolvedParams.uid;
 
-    const creditsRef = adminDb.collection('users').doc(uid).collection('meta').doc('credits');
-    const snap = await creditsRef.get();
+  const adminDb = getAdminDb();
+  const creditsRef = adminDb.collection('users').doc(uid).collection('meta').doc('credits');
+  const snap = await creditsRef.get();
     return NextResponse.json({ credits: snap.exists ? snap.data() : { scraping: 0, video: 0, resetAt: null } });
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
@@ -41,6 +42,7 @@ export async function PATCH(req: Request, { params }: { params: any }) {
   const resolvedParams = await params;
   const uid = resolvedParams.uid;
 
+  const adminDb = getAdminDb();
   const creditsRef = adminDb.collection('users').doc(uid).collection('meta').doc('credits');
     const update: any = {};
     if (typeof scraping === 'number') update.scraping = scraping;

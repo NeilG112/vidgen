@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { doc, onSnapshot, query, collection, where, orderBy, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
+import { getClientDb } from "@/lib/firebase/client";
 import { useAuth } from "@/lib/auth";
 
 function startOfMonthDate() {
@@ -17,7 +17,9 @@ export default function CreditsBar() {
 
   useEffect(() => {
     if (!user) return;
-    const creditsRef = doc(db, 'users', user.uid, 'meta', 'credits');
+    const clientDb = getClientDb();
+    if (!clientDb) return;
+    const creditsRef = doc(clientDb, 'users', user.uid, 'meta', 'credits');
     const unsub = onSnapshot(creditsRef, (snap) => {
       setCredits(snap.exists() ? (snap.data() as any) : { scraping: 0, video: 0 });
     });
@@ -25,7 +27,7 @@ export default function CreditsBar() {
     // load usage for this month (one-time load)
     (async () => {
       const start = startOfMonthDate();
-      const usageQ = query(collection(db, 'users', user.uid, 'usage'), where('createdAt', '>=', start), orderBy('createdAt', 'desc'));
+  const usageQ = query(collection(clientDb, 'users', user.uid, 'usage'), where('createdAt', '>=', start), orderBy('createdAt', 'desc'));
       try {
         const snap = await getDocs(usageQ);
         let scraping = 0;

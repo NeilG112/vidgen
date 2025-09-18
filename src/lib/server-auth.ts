@@ -1,16 +1,13 @@
 "use server";
 
 import { User as FirebaseUser } from "firebase/auth";
-import { initializeApp, getApps } from "firebase-admin/app";
+import { getAdminApp } from "./firebase/admin";
 import { getAuth } from "firebase-admin/auth";
-import { adminConfig } from "./firebase/admin";
 
 // Server-side helper to get authenticated user in Server Actions
 export async function getAuthenticatedUser(idToken: string): Promise<FirebaseUser> {
-  const apps = getApps();
-  if (!apps.length) {
-    initializeApp(adminConfig);
-  }
+  // Lazily initialize admin app (throws if env not set)
+  getAdminApp();
 
   if (!idToken) {
     throw new Error("No authentication token provided.");

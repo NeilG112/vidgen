@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase/admin';
+import { getAdminDb } from '@/lib/firebase/admin';
 import { getAuthenticatedUser } from '@/lib/server-auth';
 
 const ADMIN_EMAIL = 'neilganguly2007@gmail.com';
@@ -13,6 +13,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const adminDb = getAdminDb();
     const usersSnap = await adminDb.collection('users').get();
     const batch = adminDb.batch();
     const now = new Date();

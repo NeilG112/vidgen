@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/server-auth";
-import { adminDb } from "@/lib/firebase/admin";
+import { getAdminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { createJob, updateJob } from "./jobActions";
 
@@ -50,6 +50,7 @@ export async function scrapeProfiles(input: { profileUrls: string[], idToken: st
   });
   console.log(`Created job ${jobId} for user ${user.uid}`);
 
+  const adminDb = getAdminDb();
   // Atomically check and decrement scraping credits and create a usage log
   const creditsDocRef = adminDb.collection('users').doc(user.uid).collection('meta').doc('credits');
   const usageCollection = adminDb.collection('users').doc(user.uid).collection('usage');
@@ -143,7 +144,7 @@ export async function scrapeProfiles(input: { profileUrls: string[], idToken: st
     }
 
     console.log(`Found ${scrapedProfiles.length} profiles. Preparing to save to Firestore.`);
-    const batch = adminDb.batch();
+  const batch = adminDb.batch();
     for (const profile of scrapedProfiles) {
       const profileUrl = profile.linkedinUrl || profile.url;
 

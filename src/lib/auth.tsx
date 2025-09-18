@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { onAuthStateChanged, User as FirebaseUser, signInWithEmailAndPassword, signOut as firebaseSignOut } from "firebase/auth";
-import { auth, db } from "./firebase/client";
+import { getClientAuth, getClientDb } from "./firebase/client";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
@@ -28,18 +28,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
+    const auth = getClientAuth();
+    const db = getClientDb();
+    if (!auth) {
+      setLoading(false);
+      return; // no-op on server
+    }
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setUser(user);
         
         // Create user document in Firestore if it doesn't exist
-        const userRef = doc(db, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
-        if (!userSnap.exists()) {
-            await setDoc(userRef, {
+        try {
+          if (db) {
+            const userRef = doc(db, 'users', user.uid);
+            const userSnap = await getDoc(userRef);
+            if (!userSnap.exists()) {
+              await setDoc(userRef, {
                 email: user.email,
                 createdAt: new Date(),
-            });
+              });
+            }
+          }
+        } catch (e) {
+          // ignore firestore write errors in auth listener
+          console.error("Error ensuring user doc:", e);
         }
       } else {
         setUser(null);
@@ -51,15 +64,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = (email: string, pass: string) => {
+    const auth = getClientAuth();
+    if (!auth) return Promise.reject(new Error("Auth not available"));
     return signInWithEmailAndPassword(auth, email, pass);
   };
 
   const signOut = async () => {
+    const auth = getClientAuth();
+    if (!auth) return;
     await firebaseSignOut(auth);
   };
   
   const getAuthenticatedUser = async (): Promise<FirebaseUser | null> => {
-    await auth.authStateReady();
+    const auth = getClientAuth();
+    if (!auth) return null;
+    // @ts-ignore - compat helper may exist
+    if (typeof (auth as any).authStateReady === 'function') {
+      await (auth as any).authStateReady();
+    }
     return auth.currentUser;
   };
   

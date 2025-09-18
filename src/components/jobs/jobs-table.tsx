@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
-import { db } from "@/lib/firebase/client";
+import { getClientDb } from "@/lib/firebase/client";
 import { type Job } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
@@ -34,7 +34,9 @@ export default function JobsTable() {
     if (!user) return;
 
     setIsLoading(true);
-    const q = query(collection(db, `users/${user.uid}/jobs`), orderBy("createdAt", "desc"));
+    const clientDb = getClientDb();
+    if (!clientDb) return;
+    const q = query(collection(clientDb, `users/${user.uid}/jobs`), orderBy("createdAt", "desc"));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const jobsData: Job[] = [];

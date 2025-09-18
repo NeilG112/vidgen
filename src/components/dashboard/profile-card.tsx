@@ -5,7 +5,7 @@ import { type Profile } from "@/lib/types";
 import { useAuth } from "@/lib/auth";
 import { useEffect, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
+import { getClientDb } from "@/lib/firebase/client";
 import {
   Card,
   CardContent,
@@ -26,7 +26,9 @@ export default function ProfileCard({ profile, onOpenDialog }: ProfileCardProps)
 
   useEffect(() => {
     if (!user) return;
-    const creditsRef = doc(db, 'users', user.uid, 'meta', 'credits');
+    const clientDb = getClientDb();
+    if (!clientDb) return;
+    const creditsRef = doc(clientDb, 'users', user.uid, 'meta', 'credits');
     const unsub = onSnapshot(creditsRef, (snap) => {
       if (snap.exists()) setCredits(snap.data() as any);
       else setCredits(null);
