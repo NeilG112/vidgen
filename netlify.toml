@@ -22,19 +22,9 @@
   # In some workflows, example files or exported workflow files may contain placeholders
   # or public URLs that look like secrets. Omit those paths from scanning to avoid
   # false positives. Adjust as needed.
-  omit_paths = [
-    "Workflow 2.json",
-    ".env.example",
-    "tsconfig.tsbuildinfo",
-    ".next/cache/**",
-    ".next/**/cache/**"
-  ]
-
-  # Ignore Netlify's own cached build output directories which may contain
-  # the inlined values of public env vars during build. This prevents
-  # the secrets scanner from flagging generated artifacts.
-  # The deploy process reports matches under .netlify/.next so add those
-  # paths as well.
+  # Paths to omit from secrets scanning. Include example files, build caches,
+  # and Netlify's generated build output so the scanner doesn't flag generated
+  # artifacts containing long hashes or inlined public env values.
   omit_paths = [
     "Workflow 2.json",
     ".env.example",
