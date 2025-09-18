@@ -1,0 +1,13 @@
+#!/bin/sh
+# Simple pre-commit hook to run secret checks
+#!/usr/bin/env sh
+# Run the local secret check script which scans staged files for likely secrets.
+echo "Running pre-commit secret scan..."
+if ! npm run check-secrets; then
+	echo ""
+	echo "Pre-commit secret check failed. The commit was aborted to avoid committing potential secrets."
+	echo "If these are false positives, run the script locally and adjust 'scripts/checkSecrets.js' to whitelist safe files or patterns, then try again."
+	echo "To bypass temporarily (not recommended), use: git commit --no-verify"
+	exit 1
+fi
+echo "Secret scan passed. Proceeding with commit."

@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "check-secrets": "node scripts/checkSecrets.js",
   "typecheck": "tsc --noEmit",
   "resume:job": "node scripts/resumeVideoByJobId.js",
   "reset:credits": "node scripts/resetCredits.js"
