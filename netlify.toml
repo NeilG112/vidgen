@@ -26,17 +26,24 @@
   # and Netlify's generated build output so the scanner doesn't flag generated
   # artifacts containing long hashes or inlined public env values.
   omit_paths = [
+    # Example and exported artifacts that may legitimately contain long hashes
     "Workflow 2.json",
     ".env.example",
     "tsconfig.tsbuildinfo",
-    ".next/cache/**",
-    ".next/**/cache/**",
-    ".netlify/.next/**",
-    ".netlify/.next/cache/**",
-    ".netlify/.next/cache/webpack/**",
-    # Also omit the entire generated Next output (static chunks) and Netlify functions
+
+    # Next build output and caches (match all generated files)
     ".next/**",
-    ".next/_next/**",
+    ".next/cache/**",
+    ".next/*/cache/**",
     ".next/static/**",
-    ".netlify/functions-internal/**"
+    ".next/server/**",
+
+    # Netlify-specific build output (when Netlify packages .next into functions)
+    ".netlify/.next/**",
+    ".netlify/functions-internal/**",
+    ".netlify/functions/**",
+
+    # Cover common webpack pack/cache files
+    ".next/cache/webpack/**",
+    ".netlify/.next/cache/webpack/**"
   ]
