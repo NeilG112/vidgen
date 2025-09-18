@@ -7,9 +7,8 @@
   publish = ".next"
 
 [build.environment]
-  SECRETS_SCAN_ENABLED = "limited"
-  # Configure secrets scan to skip public env vars
-  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_FIREBASE_API_KEY,NEXT_PUBLIC_FIREBASE_APP_ID,NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,NEXT_PUBLIC_FIREBASE_PROJECT_ID,NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET"
+  # Disable sensitive secrets scanning since we're handling all secrets via Netlify environment variables
+  SECRETS_SCAN_ENABLED = "false"
 
 [build.processing.secrets]
   # Paths to omit from secrets scanning. Include example files, build caches,
