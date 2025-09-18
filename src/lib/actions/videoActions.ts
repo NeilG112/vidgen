@@ -43,9 +43,9 @@ export async function generateVideo(input: { profileId: string, script: string, 
     await updateJob({ userId: user.uid, jobId, status: "running" });
 
     // TODO: set in .env
-    const heygenApiKey = process.env.HEYGEN_API_KEY;
-    const heygenAvatarId = process.env.HEYGEN_AVATAR_ID;
-    const heygenVoiceId = process.env.HEYGEN_VOICE_ID;
+  const heygenApiKey = process.env['HEYGEN_API_KEY'];
+  const heygenAvatarId = process.env['HEYGEN_AVATAR_ID'];
+  const heygenVoiceId = process.env['HEYGEN_VOICE_ID'];
 
     if (!heygenApiKey || !heygenAvatarId || !heygenVoiceId) {
       throw new Error("HeyGen configuration is missing on the server.");

@@ -74,8 +74,8 @@ export async function scrapeProfiles(input: { profileUrls: string[], idToken: st
   try {
     await updateJob({ userId: user.uid, jobId, status: "running" });
 
-    const apifyToken = process.env.APIFY_TOKEN;
-    const apifyActorId = process.env.APIFY_ACTOR_ID;
+  const apifyToken = process.env['APIFY_TOKEN'];
+  const apifyActorId = process.env['APIFY_ACTOR_ID'];
 
     if (!apifyToken || !apifyActorId) {
         console.error("Apify configuration missing.");

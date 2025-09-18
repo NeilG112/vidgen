@@ -23,18 +23,18 @@ async function main() {
     process.exit(1);
   }
 
-  const heygenApiKey = process.env.HEYGEN_API_KEY;
+  const heygenApiKey = process.env['HEYGEN_API_KEY'];
 
   if (getApps().length === 0) {
-    const rawBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || '';
+    const rawBucket = process.env['NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET'] || '';
     const normalizedBucket = rawBucket.includes('firebasestorage.app')
-      ? `${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.appspot.com`
+      ? `${process.env['NEXT_PUBLIC_FIREBASE_PROJECT_ID']}.appspot.com`
       : rawBucket;
     initializeApp({
       credential: cert({
-        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+        projectId: process.env['NEXT_PUBLIC_FIREBASE_PROJECT_ID'],
+        clientEmail: process.env['FIREBASE_CLIENT_EMAIL'],
+        privateKey: (process.env['FIREBASE_PRIVATE_KEY'] || '').replace(/\\n/g, '\n'),
       }),
       storageBucket: normalizedBucket,
     });
