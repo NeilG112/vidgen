@@ -44,13 +44,20 @@ This application is built with Next.js, Firebase, and integrates with Apify for 
     npm install
     ```
 
-3.  **Set up environment variables:**
+3.  **Set up environment variables (local & Netlify):**
 
-    Create a `.env.local` file in the root of the project by copying the example file:
+    For local development, copy the example and fill in real values:
     ```bash
     cp .env.example .env.local
     ```
     Populate `.env.local` with your credentials from Firebase, Apify, and HeyGen. See the comments in the file for guidance on where to find each value.
+
+    Important: Do NOT commit real secrets into the repository. Instead, when deploying to Netlify, set environment variables in the Netlify UI:
+    - Go to your site on Netlify -> Site settings -> Build & deploy -> Environment -> Environment variables
+    - Add the same keys you use locally (`APIFY_TOKEN`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`, `HEYGEN_API_KEY`, etc.)
+    - Netlify will keep those values secure and they won't be visible in the repo or build logs.
+
+    If Netlify's secrets scanner still flags build-time values that are intentionally public (e.g., `NEXT_PUBLIC_` Firebase config), add those keys to `netlify.toml` under `build.processing.secrets.omit_keys` (this repo already contains the recommended omitted keys).
 
 4.  **Set up Firebase:**
     - Create a new project in the [Firebase Console](https://console.firebase.google.com/).
