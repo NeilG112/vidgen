@@ -33,5 +33,10 @@
     ".next/**/cache/**",
     ".netlify/.next/**",
     ".netlify/.next/cache/**",
-    ".netlify/.next/cache/webpack/**"
+    ".netlify/.next/cache/webpack/**",
+    # Also omit the entire generated Next output (static chunks) and Netlify functions
+    ".next/**",
+    ".next/_next/**",
+    ".next/static/**",
+    ".netlify/functions-internal/**"
   ]
