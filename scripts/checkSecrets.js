@@ -33,6 +33,7 @@ const skipPatterns = [
   /^README\.?/i,
   /^\.githooks\//i,
   /^scripts\/checkSecrets\.js$/i,
+  /^netlify\.toml$/i, // allow public keys in Netlify config
   /\.json$/i, // skip other json files by default (adjust if necessary)
 ];
 
