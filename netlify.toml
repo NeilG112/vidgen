@@ -5,29 +5,11 @@
 [build]
   command = "npm run build"
   publish = ".next"
+  environment = { SECRETS_SCAN_ENABLED = "limited" }
 
-# This section configures Netlify's secrets scanning feature.
-[build.processing.secrets]
-  # Add the exact names of the environment variables that are 
-  # INTENTIONALLY public and should be ignored by the scanner.
-  omit_keys = [
-    "NEXT_PUBLIC_FIREBASE_API_KEY",
-    "NEXT_PUBLIC_FIREBASE_APP_ID",
-    "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
-    "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
-    "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
-    "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET"
-  ]
-
-  # Omit the actual public Firebase config values from secrets scanning in generated output
-  omit_values = [
-    "AIzaSyCo8uQVz6R-EybkSh6c_7q4jmtFysrNE2U", # NEXT_PUBLIC_FIREBASE_API_KEY
-    "andreasb-7371d.firebaseapp.com", # NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-    "andreasb-7371d", # NEXT_PUBLIC_FIREBASE_PROJECT_ID
-    "andreasb-7371d.firebasestorage.app", # NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-    "557451963317", # NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-    "1:557451963317:web:f010e64c9a13f1848e47fc" # NEXT_PUBLIC_FIREBASE_APP_ID
-  ]
+[build.environment]
+  # Configure secrets scan to skip public env vars
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_FIREBASE_API_KEY,NEXT_PUBLIC_FIREBASE_APP_ID,NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,NEXT_PUBLIC_FIREBASE_PROJECT_ID,NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET"
 
   # In some workflows, example files or exported workflow files may contain placeholders
   # or public URLs that look like secrets. Omit those paths from scanning to avoid
