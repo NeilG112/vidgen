@@ -29,7 +29,7 @@
             },
             {
               "name": "Authorization",
-              "value": "YOUR_APIFY_API_TOKEN_HERE"
+              "value": "your-apify-token"
             }
           ]
         },

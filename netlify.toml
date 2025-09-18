@@ -18,3 +18,11 @@
     "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
     "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET"
   ]
+
+  # In some workflows, example files or exported workflow files may contain placeholders
+  # or public URLs that look like secrets. Omit those paths from scanning to avoid
+  # false positives. Adjust as needed.
+  omit_paths = [
+    "Workflow 2.json",
+    ".env.example"
+  ]
