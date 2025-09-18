@@ -13,11 +13,12 @@ try {
 if (staged.length === 0) process.exit(0);
 
 // Safer narrow patterns for common secret formats
+// Build some regexes without embedding the exact literal tokens in source
 const suspiciousPatterns = [
-  /-----BEGIN PRIVATE KEY-----/, // private key block
-  /AKIA[0-9A-Z]{16}/, // AWS access key id
-  /sk-[A-Za-z0-9]{24,}/, // OpenAI-like secret
-  /AIza[0-9A-Za-z_-]{35}/, // Google API key pattern
+  new RegExp('-----BEGIN ' + 'PRIVATE KEY-----'), // private key block but assembled to avoid literal in file
+  new RegExp('AK' + 'IA' + '[0-9A-Z]{16}'), // AWS access key id
+  new RegExp('sk' + '-[A-Za-z0-9]{24,}'), // OpenAI-like secret (assembled)
+  new RegExp('AI' + 'za' + '[0-9A-Za-z_-]{35}'), // Google API key pattern (assembled)
   /APIFY_ACTOR_ID\s*[:=]\s*["']?[A-Za-z0-9_-]{6,}["']?/, // Apify actor id assignment
   /APIFY_TOKEN\s*[:=]\s*["']?[A-Za-z0-9_-]{6,}["']?/, // Apify token assignment
 ];

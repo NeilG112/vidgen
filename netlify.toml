@@ -24,5 +24,24 @@
   # false positives. Adjust as needed.
   omit_paths = [
     "Workflow 2.json",
-    ".env.example"
+    ".env.example",
+    "tsconfig.tsbuildinfo",
+    ".next/cache/**",
+    ".next/**/cache/**"
+  ]
+
+  # Ignore Netlify's own cached build output directories which may contain
+  # the inlined values of public env vars during build. This prevents
+  # the secrets scanner from flagging generated artifacts.
+  # The deploy process reports matches under .netlify/.next so add those
+  # paths as well.
+  omit_paths = [
+    "Workflow 2.json",
+    ".env.example",
+    "tsconfig.tsbuildinfo",
+    ".next/cache/**",
+    ".next/**/cache/**",
+    ".netlify/.next/**",
+    ".netlify/.next/cache/**",
+    ".netlify/.next/cache/webpack/**"
   ]
