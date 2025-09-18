@@ -1,0 +1,20 @@
+# netlify.toml
+
+# This section configures the build command and publish directory.
+# It should match what you have set in the Netlify UI.
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+# This section configures Netlify's secrets scanning feature.
+[build.processing.secrets]
+  # Add the exact names of the environment variables that are 
+  # INTENTIONALLY public and should be ignored by the scanner.
+  omit_keys = [
+    "NEXT_PUBLIC_FIREBASE_API_KEY",
+    "NEXT_PUBLIC_FIREBASE_APP_ID",
+    "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
+    "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
+    "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+    "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET"
+  ]
